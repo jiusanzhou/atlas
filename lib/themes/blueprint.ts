@@ -1,0 +1,38 @@
+import type { ThemeTokens } from "./types";
+import { hearthstone } from "./hearthstone";
+
+/** Stub theme: cyan-on-navy drafting look over the hearthstone geometry. */
+export const blueprint: ThemeTokens = {
+  ...hearthstone,
+  name: "blueprint",
+  label: "Blueprint",
+  card: { width: 240, height: 300, avatarSize: 96, borderRadius: 2 },
+  cardBackground: "linear-gradient(180deg, #0b2545 0%, #10345c 100%)",
+  cardBackgroundFlat: "#0e2c50",
+  accent: "#67e8f9",
+  accentSoft: "rgba(103, 232, 249, 0.25)",
+  textPrimary: "#e0f2fe",
+  textSecondary: "#7dd3fc",
+  domainBackground: "rgba(8, 30, 56, 0.8)",
+  domainBorder: "rgba(103, 232, 249, 0.4)",
+  domainBanner: "linear-gradient(90deg, #082f49 0%, #0e7490 100%)",
+  canvasBackground: "#071a30",
+  tagBackground: "rgba(3, 22, 41, 0.75)",
+  tagText: "#67e8f9",
+  gapBorder: "#64748b",
+  gapBackground: "rgba(8, 30, 56, 0.6)",
+  gapText: "#94a3b8",
+  loanBadgeBackground: "#0e7490",
+  loanBadgeText: "#ecfeff",
+  loanArrow: "#22d3ee",
+  headingFont: "'SF Mono', 'JetBrains Mono', ui-monospace, monospace",
+  bodyFont: "'SF Mono', 'JetBrains Mono', ui-monospace, monospace",
+  rarity: {
+    common: { border: "#475569", glow: "rgba(71, 85, 105, 0.4)", label: "普通" },
+    rare: { border: "#38bdf8", glow: "rgba(56, 189, 248, 0.4)", label: "稀有" },
+    epic: { border: "#818cf8", glow: "rgba(129, 140, 248, 0.45)", label: "史诗" },
+    legendary: { border: "#67e8f9", glow: "rgba(103, 232, 249, 0.55)", label: "传说" },
+  },
+};
+
+export default blueprint;

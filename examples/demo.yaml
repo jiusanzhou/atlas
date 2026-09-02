@@ -1,0 +1,182 @@
+meta:
+  title: 技术中台组织架构
+  description: 基础设施、应用平台、数据与算法四大方向的领域负责人、核心成员与人力缺口
+  version: "1.0.0"
+
+theme: hearthstone
+
+domains:
+  - name: infra
+    displayName: 基础设施
+    lead: torvalds
+    color: "#4a3113"
+    description: 内核、网络、计算与存储底座
+    subdomains:
+      - name: compute
+        displayName: 计算与调度
+        lead: gvanrossum
+        gaps:
+          - role: SRE 工程师
+            count: 2
+            priority: high
+            note: 支撑多活容灾演练
+      - name: storage
+        displayName: 存储
+        lead: antirez
+        members: [pcarrier]
+        gaps:
+          - role: 分布式存储专家
+            count: 1
+            priority: critical
+            note: 自研 KV 引擎缺主力
+
+  - name: platform
+    displayName: 应用平台
+    lead: dhh
+    color: "#3f2a4a"
+    description: 研发框架、CI/CD 与服务治理
+    subdomains:
+      - name: devex
+        displayName: 研发效能
+        lead: matz
+        members: [jeresig]
+        gaps:
+          - role: 构建工程师
+            count: 1
+            priority: medium
+
+  - name: data
+    displayName: 数据
+    lead: mrocklin
+    color: "#13424a"
+    description: 数仓、实时计算与指标体系
+    subdomains:
+      - name: warehouse
+        displayName: 数仓与建模
+        lead: wesm
+
+  - name: frontend
+    displayName: 前端
+    lead: gaearon
+    members: [yyx990803]
+    color: "#1a3a4a"
+    description: Web 架构、组件体系与渲染性能
+
+  - name: algo
+    displayName: 算法
+    lead: karpathy
+    members: []
+    color: "#4a1f2a"
+    description: 推荐、NLP 与模型工程
+    gaps:
+      - role: 推荐算法工程师
+        count: 3
+        priority: critical
+        note: 新业务线冷启动
+
+people:
+  - id: torvalds
+    name: Linus Torvalds
+    title: 首席架构师
+    homeDomain: infra
+    avatar: github:torvalds
+    tags: [Kernel, C, 分布式]
+    rarity: legendary
+
+  - id: gvanrossum
+    name: Guido van Rossum
+    title: 资深技术专家
+    homeDomain: compute
+    avatar: github:gvanrossum
+    tags: [Python, 调度, 编译器]
+    rarity: legendary
+
+  - id: antirez
+    name: Salvatore Sanfilippo
+    title: 存储负责人
+    homeDomain: storage
+    avatar: github:antirez
+    tags: [Redis, C, 存储引擎]
+    rarity: epic
+    lendTo:
+      - domain: data
+        ratio: 0.3
+        role: 实时存储选型
+
+  - id: pcarrier
+    name: Pierre Carrier
+    title: 存储工程师
+    homeDomain: storage
+    avatar: gravatar:pierre@example.com
+    tags: [Ceph, 一致性]
+
+  - id: dhh
+    name: David Heinemeier Hansson
+    title: 平台技术总监
+    homeDomain: platform
+    avatar: github:dhh
+    tags: [Rails, 架构, 研发效能]
+    rarity: legendary
+
+  - id: matz
+    name: Yukihiro Matsumoto
+    title: 研发效能负责人
+    homeDomain: devex
+    avatar: github:matz
+    tags: [Ruby, DSL, 工具链]
+    rarity: epic
+    lendTo:
+      - domain: infra
+        ratio: 0.4
+        role: 内部工具链治理
+
+  - id: jeresig
+    name: John Resig
+    title: 高级工程师
+    homeDomain: devex
+    avatar: github:jeresig
+    tags: [JavaScript, 测试]
+
+  - id: mrocklin
+    name: Matthew Rocklin
+    title: 数据平台负责人
+    homeDomain: data
+    avatar: github:mrocklin
+    tags: [Dask, 并行计算, 调度]
+    rarity: epic
+
+  - id: wesm
+    name: Wes McKinney
+    title: 数仓架构师
+    homeDomain: warehouse
+    avatar: github:wesm
+    tags: [Arrow, Pandas, 列式存储]
+    rarity: epic
+    lendTo:
+      - domain: algo
+        ratio: 0.25
+        role: 特征工程管道
+
+  - id: gaearon
+    name: Dan Abramov
+    title: 前端负责人
+    homeDomain: frontend
+    avatar: github:gaearon
+    tags: [React, 状态管理, DX]
+    rarity: legendary
+
+  - id: yyx990803
+    name: Evan You
+    title: 前端架构师
+    homeDomain: frontend
+    avatar: github:yyx990803
+    tags: [Vue, Vite, 构建]
+    rarity: epic
+
+  - id: karpathy
+    name: Andrej Karpathy
+    title: 算法负责人
+    homeDomain: algo
+    avatar: github:karpathy
+    tags: [深度学习, NLP, 模型工程]
+    rarity: legendary
