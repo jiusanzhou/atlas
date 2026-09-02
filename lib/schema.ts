@@ -30,6 +30,8 @@ export const PersonSchema = z.object({
   tags: z.array(z.string()).optional(),
   lendTo: z.array(LoanSchema).optional(),
   rarity: z.enum(RARITIES).optional(),
+  /** Markdown source, shown on the card's flipped back face. */
+  comment: z.string().optional(),
 });
 
 export const DomainSchema: z.ZodType<DomainInput> = z.object({

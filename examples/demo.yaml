@@ -97,6 +97,15 @@ people:
     avatar: github:torvalds
     tags: [Kernel, C, 分布式]
     rarity: legendary
+    comment: |
+      **强项**：内核方向的定海神针，架构判断稳。
+      **风险**：对分布式存储的介入度低，需要 antirez 补位。
+
+      最近关注：
+
+      - RISC-V 生态跟进
+      - 内核可观测性能力建设
+      - 多活容灾的内核侧支撑
 
   - id: gvanrossum
     name: Guido van Rossum
@@ -117,6 +126,13 @@ people:
       - domain: streaming
         ratio: 0.3
         role: 实时存储选型
+    comment: |
+      存储方向 tech lead，正在 lead 自研 KV（代号 `atlas-kv`）。
+
+      - 借调 30% 给实时计算做存储选型
+      - 长期计划：把对象存储纠删码方案落地
+
+      > 注意：借调比例已到上限，不宜再加新方向。
 
   - id: bcantrill
     name: Bryan Cantrill
@@ -154,6 +170,7 @@ people:
     avatar: github:dhh
     tags: [Rails, 架构, 研发效能]
     rarity: legendary
+    comment: 平台总监。风格强硬，落地能力强。
 
   - id: matz
     name: Yukihiro Matsumoto
@@ -221,3 +238,12 @@ people:
     avatar: github:karpathy
     tags: [深度学习, 流处理, 模型工程]
     rarity: legendary
+    comment: |
+      实时计算负责人，AI 背景强。
+
+      ⚠️ **需要关注**：流计算工程师缺口 2 人，招聘周期长。
+
+      | 方向 | 状态 |
+      | --- | --- |
+      | 实时指标 | 进行中 |
+      | 特征平台 | ~~暂缓~~ |

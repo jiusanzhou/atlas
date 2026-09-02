@@ -18,6 +18,12 @@ import { Crosshair, Maximize2, Minus, Plus } from "lucide-react";
  */
 export const NO_PAN_ATTR = "data-canvas-no-pan";
 
+/**
+ * Elements carrying this attribute keep native wheel scrolling instead of
+ * zooming the canvas, so scrollable overlays inside cards stay usable.
+ */
+export const NO_ZOOM_ATTR = "data-canvas-no-zoom";
+
 export type GridBackground = "dots" | "lines" | "none";
 
 export interface CanvasHandle {
@@ -213,6 +219,12 @@ export function Canvas({
     if (!viewport) return;
 
     const onWheel = (event: WheelEvent) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest(`[${NO_ZOOM_ATTR}]`) !== null
+      ) {
+        return;
+      }
       event.preventDefault();
       const rect = viewport.getBoundingClientRect();
       // Trackpad pinch arrives as ctrlKey+wheel with much finer deltas.

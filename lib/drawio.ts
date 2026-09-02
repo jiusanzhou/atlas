@@ -90,6 +90,21 @@ function edge(
   return id;
 }
 
+/**
+ * The card's identity plus its markdown comment, as the frame cell's value.
+ * Rendered with `noLabel=1` (the child cells already draw name/title/tags), so
+ * this survives as the card's tooltip and as searchable / editable text.
+ */
+function cardValue(slot: PersonSlot): string {
+  const comment = slot.person.comment?.trim();
+  if (!comment) return "";
+
+  const tags = (slot.person.tags ?? []).slice(0, 3);
+  return [slot.person.name, slot.person.title ?? "", tags.join(" · "), "---", comment]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
 function personCardCells(
   writer: CellWriter,
   slot: PersonSlot,
@@ -99,10 +114,11 @@ function personCardCells(
 ): void {
   const rarity = theme.rarity[slot.rarity];
   const strokeWidth = slot.kind === "lead" ? 4 : 2;
+  const value = cardValue(slot);
 
   // Card frame is the group parent, so children use coordinates relative to it.
   const cardId = vertex(writer, {
-    value: "",
+    value,
     style: [
       "rounded=1",
       `arcSize=${Math.round((theme.card.borderRadius / theme.card.width) * 100)}`,
@@ -113,6 +129,9 @@ function personCardCells(
       "html=1",
       "whiteSpace=wrap",
       "verticalAlign=top",
+      // Child cells already draw the visible text; keep the frame label hidden
+      // so the comment does not paint over the avatar.
+      ...(value ? ["noLabel=1"] : []),
     ].join(";"),
     x: slot.x,
     y: slot.y,
