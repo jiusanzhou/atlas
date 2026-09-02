@@ -137,8 +137,11 @@ lib/avatar.ts      头像 fallback 链（sync 版给渲染，async 版给 file:/
 lib/md5.ts         gravatar 需要 MD5，WebCrypto 不提供，同构实现
 lib/drawio.ts      mxGraph XML 生成（多 page）
 lib/themes/        主题 token
+components/Canvas  可拖拽缩放的画布容器（手写，无 pan/zoom 依赖）
 components/        DomainTree → DomainCard → PersonCard / GapCard + LoanBadge
 ```
+
+**画布容器**：树渲染在 `Canvas` 的世界坐标里，页面自身永不滚动（`AtlasEditor` 用 `fixed inset-0`，不给 `/render` 加 `overflow: hidden`，否则 puppeteer 元素截图会被视口裁切）。空白处拖拽平移、滚轮以光标为锚点缩放（0.2×~3×）、双击或右下角工具条 fit。卡片子树标记 `data-canvas-no-pan` 以保留自身的 hover / 点击；按住空格可无视该标记强制平移。Radix 会卸载非激活 tab，所以切 tab 天然重新挂载并重新 fit。
 
 **一个顶层领域一张图**：`computeDomainTreeLayout(config, domain)` 只处理一个顶层领域，把它和递归的子领域排成自上而下的树，Web 端用 Tabs 切换，drawio 一个领域一个 page，PNG 一个领域一张。人员卡不进入树结构，作为领域节点的"内容附件"挂在节点内部的 grid 里。
 

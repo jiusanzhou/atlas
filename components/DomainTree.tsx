@@ -11,6 +11,7 @@ import { getTheme } from "@/lib/themes";
 import { DomainCard } from "./DomainCard";
 import { PersonCard } from "./PersonCard";
 import { GapCard } from "./GapCard";
+import { NO_PAN_ATTR } from "./Canvas";
 
 interface DomainTreeProps {
   config: Config;
@@ -18,6 +19,8 @@ interface DomainTreeProps {
   domain: Domain;
   /** Static render for puppeteer: no entry/hover animation. */
   still?: boolean;
+  /** Drop the theme backdrop so a host canvas can show its own grid through. */
+  transparent?: boolean;
   columns?: number;
 }
 
@@ -27,7 +30,13 @@ function linkPath(link: TreeLink): string {
   return `M ${link.fromX} ${link.fromY} C ${link.fromX} ${midY}, ${link.toX} ${midY}, ${link.toX} ${link.toY}`;
 }
 
-export function DomainTree({ config, domain, still = false, columns }: DomainTreeProps) {
+export function DomainTree({
+  config,
+  domain,
+  still = false,
+  transparent = false,
+  columns,
+}: DomainTreeProps) {
   const theme = getTheme(config.theme);
 
   const layout = useMemo(
@@ -47,7 +56,7 @@ export function DomainTree({ config, domain, still = false, columns }: DomainTre
       style={{
         width: layout.width,
         height: layout.height,
-        background: theme.canvasBackground,
+        background: transparent ? undefined : theme.canvasBackground,
       }}
     >
       {/* Links sit under the nodes so connectors tuck behind the boxes. */}
@@ -73,7 +82,9 @@ export function DomainTree({ config, domain, still = false, columns }: DomainTre
           {node.slots.map((slot) => (
             <div
               key={slot.id}
-              className="absolute"
+              // Cards own their pointer gestures; the canvas pans on empty space.
+              {...{ [NO_PAN_ATTR]: true }}
+              className="absolute cursor-default"
               style={{ left: slot.x - node.x, top: slot.y - node.y }}
             >
               {slot.kind === "gap" ? (

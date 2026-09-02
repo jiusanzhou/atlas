@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigInput } from "@/components/ConfigInput";
 import { DomainTree } from "@/components/DomainTree";
+import { Canvas } from "@/components/Canvas";
 import { ConfigError, parseConfig, type ConfigFormat } from "@/lib/parser";
 import { domainGaps, domainLabel, totalGaps } from "@/lib/layout";
 import { THEMES, type Config, type ThemeName } from "@/lib/schema";
@@ -125,7 +126,9 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
   );
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col bg-zinc-950 text-zinc-100">
+    // Fixed rather than h-dvh: guarantees the page itself can never scroll,
+    // without forcing overflow-hidden onto /render (puppeteer needs overflow).
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-zinc-950 text-zinc-100">
       <header className="flex shrink-0 items-center justify-between gap-4 border-b border-zinc-800 bg-zinc-900/60 px-5 py-3">
         <div className="flex items-baseline gap-3">
           <h1
@@ -240,10 +243,19 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
                 <TabsContent
                   key={domain.name}
                   value={domain.name}
-                  className="min-h-0 flex-1 overflow-auto p-6"
-                  style={{ background: activeTheme.canvasBackground }}
+                  className="min-h-0 flex-1 overflow-hidden p-3"
                 >
-                  <DomainTree config={config} domain={domain} />
+                  {/* Radix unmounts inactive tab content, so each switch
+                      remounts the canvas and re-runs the fit. */}
+                  <Canvas
+                    className="h-full w-full"
+                    initialFit
+                    fitKey={`${domain.name}::${activeTheme.name}`}
+                    background={activeTheme.canvasBackground}
+                    gridBackground="dots"
+                  >
+                    <DomainTree config={config} domain={domain} transparent />
+                  </Canvas>
                 </TabsContent>
               ))}
             </Tabs>
