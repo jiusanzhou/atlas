@@ -19,7 +19,7 @@ pnpm dev          # http://localhost:3000
 pnpm build        # 生产构建
 ```
 
-首页左侧是配置编辑区（默认载入 `examples/demo.yaml`），右侧实时渲染，顶部三个按钮：切换主题 / 导出 drawio / 导出 PNG。
+首页左侧是配置编辑区（默认载入 `examples/demo.yaml`），右侧按顶层领域分 Tab 实时渲染，顶部三个按钮：切换主题 / 导出 drawio / 导出 PNG (zip)。
 
 PNG 导出需要 Chrome。若 `pnpm install` 阶段浏览器下载失败：
 
@@ -96,8 +96,8 @@ people:
 
 | 方式 | 说明 |
 | --- | --- |
-| **drawio** | `POST /api/drawio` → 合法 mxGraph XML。领域为 container，人物卡为组合 mxCell，借调为虚线箭头。头像默认内嵌 base64（离线可打开），全部保留可编辑性，不栅格化 |
-| **PNG** | `POST /api/export` → puppeteer 无头截图 `/render` 页面。支持 `scale`（默认 2，Retina）与 `width` |
+| **drawio** | `POST /api/drawio` → 合法 mxGraph XML，**一个顶层领域一个 `<diagram>` page**，同一个 `<mxfile>` 内。领域节点为 container，人物卡为组合 mxCell，领域→子领域为实线连线，借调以卡片角标文本呈现（不跨 page 画箭头）。头像默认内嵌 base64（离线可打开），全部保留可编辑性，不栅格化 |
+| **PNG** | `POST /api/export` → puppeteer 无头截图 `/render` 页面，**每个顶层领域一张 PNG，打包成 zip 返回**（`application/zip`，条目名 `atlas-{领域名}.png`）。支持 `scale`（默认 2，Retina）与 `width` |
 | **解析** | `POST /api/parse` → 三格式统一解析为 Config，返回 stats 与引用告警 |
 
 ```bash
@@ -107,13 +107,15 @@ curl -X POST localhost:3000/api/drawio \
   -d "{\"source\": $(python3 -c 'import json;print(json.dumps(open("examples/demo.yaml").read()))')}" \
   -o atlas.drawio
 
-# PNG @2x
+# PNG @2x（zip，每个顶层领域一张）
 curl -X POST localhost:3000/api/export \
   -H 'Content-Type: application/json' \
-  -d '{"config": {...}, "scale": 2}' -o atlas.png
+  -d '{"config": {...}, "scale": 2}' -o atlas.zip
 ```
 
-`/render?config=<urlencoded json>&theme=hearthstone` 是无编辑器 chrome 的纯净渲染页，PNG 导出走它，也可直接访问调试。
+zip 条目名用 UTF-8（general purpose bit 11），Finder / `ditto` / Windows / Linux 均可正确解压；macOS 自带的 `unzip` 会忽略该标志位而报 `Illegal byte sequence`，用 `ditto -x -k` 代替。
+
+`/render?config=<urlencoded json>&domain=<顶层领域名>&theme=hearthstone` 是无编辑器 chrome 的纯净渲染页，一次渲染一个顶层领域的树，PNG 导出逐个访问它；`domain` 省略或不匹配时回退到第一个顶层领域。
 
 ## 主题扩展
 
@@ -130,15 +132,21 @@ curl -X POST localhost:3000/api/export \
 ```
 lib/schema.ts      zod schema + 类型（Domain 递归通过 z.lazy）
 lib/parser.ts      三格式识别与解析 + 交叉引用校验
-lib/layout.ts      两趟布局：自底向上测量，自顶向下定位，输出画布绝对坐标
+lib/layout.ts      单个顶层领域 → 自上而下树布局（d3-hierarchy tree），输出画布绝对坐标
 lib/avatar.ts      头像 fallback 链（sync 版给渲染，async 版给 file:// 与 base64 内联）
 lib/md5.ts         gravatar 需要 MD5，WebCrypto 不提供，同构实现
-lib/drawio.ts      mxGraph XML 生成
+lib/drawio.ts      mxGraph XML 生成（多 page）
 lib/themes/        主题 token
-components/        DomainTree → DomainCard → PersonCard / GapCard + LoanArrow overlay
+components/        DomainTree → DomainCard → PersonCard / GapCard + LoanBadge
 ```
 
-布局产出画布绝对坐标，web 与 drawio 共用同一份几何，所以两种输出的排版一致。web 端领域盒子按 depth 排序平铺渲染（不做 DOM 嵌套，否则子领域会被二次偏移）；drawio 端则把子坐标重新基于父 container，因为 mxGraph container 的坐标本就是相对的。
+**一个顶层领域一张图**：`computeDomainTreeLayout(config, domain)` 只处理一个顶层领域，把它和递归的子领域排成自上而下的树，Web 端用 Tabs 切换，drawio 一个领域一个 page，PNG 一个领域一张。人员卡不进入树结构，作为领域节点的"内容附件"挂在节点内部的 grid 里。
+
+布局产出画布绝对坐标，web 与 drawio 共用同一份几何，所以两种输出的排版一致。树节点在两端都是**平铺**的兄弟（不做空间嵌套），只有节点自身的卡片需要换算到节点局部坐标系——drawio 侧因为 mxGraph container 坐标本就相对，减去节点原点即可。
+
+节点宽度随人员数变化，所以 d3 `tree()` 用 `nodeSize([1, 1])` 把 x 单位当像素，真实间距全部由 `separation` 表达（相邻兄弟 `nodeGapX`，堂兄弟 ×1.6）；每层 y 单独按该层最高节点累加，避免层高被最深的分支拉齐。
+
+借调是跨图信号，所以不画跨 tab / 跨 page 箭头，改在人物卡右上角叠加徽章：橙色 `→ 目标领域 N%`（借出）、蓝色 `← 主属地 N%`（借入），领域名统一解析成 `displayName`。虚线样式因此空出来，领域→子领域连线用实线。
 
 ## 技术栈
 

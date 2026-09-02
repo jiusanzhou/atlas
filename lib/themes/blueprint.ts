@@ -25,6 +25,9 @@ export const blueprint: ThemeTokens = {
   loanBadgeBackground: "#0e7490",
   loanBadgeText: "#ecfeff",
   loanArrow: "#22d3ee",
+  loanOutBackground: "#b45309",
+  loanInBackground: "#0369a1",
+  treeLink: "rgba(103, 232, 249, 0.45)",
   headingFont: "'SF Mono', 'JetBrains Mono', ui-monospace, monospace",
   bodyFont: "'SF Mono', 'JetBrains Mono', ui-monospace, monospace",
   rarity: {

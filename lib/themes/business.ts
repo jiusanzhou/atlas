@@ -25,6 +25,9 @@ export const business: ThemeTokens = {
   loanBadgeBackground: "#1d4ed8",
   loanBadgeText: "#ffffff",
   loanArrow: "#1d4ed8",
+  loanOutBackground: "#ea580c",
+  loanInBackground: "#1d4ed8",
+  treeLink: "#94a3b8",
   headingFont: "'Helvetica Neue', 'PingFang SC', system-ui, sans-serif",
   rarity: {
     common: { border: "#cbd5e1", glow: "rgba(148, 163, 184, 0.3)", label: "普通" },

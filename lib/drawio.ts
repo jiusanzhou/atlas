@@ -1,5 +1,13 @@
 import type { Config } from "./schema";
-import { computeLayout, layoutFromTheme, type DomainBox, type Slot } from "./layout";
+import {
+  computeDomainTreeLayout,
+  domainLabel,
+  layoutFromTheme,
+  type DomainNode,
+  type DomainTreeLayout,
+  type PersonSlot,
+  type Slot,
+} from "./layout";
 import { getTheme } from "./themes";
 import { resolveAvatar, resolveAvatarSync } from "./avatar";
 import type { ThemeTokens } from "./themes/types";
@@ -7,7 +15,6 @@ import type { ThemeTokens } from "./themes/types";
 export interface DrawioOptions {
   /** Pre-resolved avatar data URIs keyed by person id; enables offline opening. */
   avatars?: Record<string, string>;
-  diagramName?: string;
 }
 
 function escapeAttr(value: string): string {
@@ -32,11 +39,12 @@ interface CellWriter {
   slotCellIds: Map<string, string>;
 }
 
-function createWriter(): CellWriter {
+/** Ids are prefixed per page so a multi-diagram file has no collisions. */
+function createWriter(prefix: string): CellWriter {
   let counter = 1;
   return {
     cells: [],
-    nextId: () => `atlas-${counter++}`,
+    nextId: () => `${prefix}-${counter++}`,
     slotCellIds: new Map(),
   };
 }
@@ -84,7 +92,7 @@ function edge(
 
 function personCardCells(
   writer: CellWriter,
-  slot: Extract<Slot, { kind: "lead" | "member" }>,
+  slot: PersonSlot,
   parent: string,
   theme: ThemeTokens,
   avatars: Record<string, string>,
@@ -246,31 +254,27 @@ function personCardCells(
     }
   }
 
-  const badge = slot.loans[0]
-    ? `→ ${slot.loans[0].domain} ${Math.round(slot.loans[0].ratio * 100)}%`
-    : slot.onLoanFrom
-      ? `← ${slot.onLoanFrom} ${Math.round((slot.loanRatio ?? 0) * 100)}%`
-      : null;
-
-  if (badge) {
+  // Loans cross pages, so they are annotated on the card instead of drawn as edges.
+  for (const [index, badge] of slot.badges.slice(0, 3).entries()) {
+    const out = badge.direction === "out";
     vertex(writer, {
-      value: badge,
+      value: `${out ? "→" : "←"} ${badge.domain} ${Math.round(badge.ratio * 100)}%`,
       style: [
         "rounded=1",
         "arcSize=30",
-        `fillColor=${theme.loanBadgeBackground}`,
+        `fillColor=${out ? theme.loanOutBackground : theme.loanInBackground}`,
         "strokeColor=none",
         `fontColor=${theme.loanBadgeText}`,
-        "fontSize=10",
+        "fontSize=9",
         "fontStyle=1",
         "html=1",
         "align=center",
         "verticalAlign=middle",
       ].join(";"),
-      x: slot.width - 104,
-      y: 4,
-      width: 100,
-      height: 20,
+      x: slot.width - 108,
+      y: 4 + index * 20,
+      width: 104,
+      height: 18,
       parent: cardId,
     });
   }
@@ -404,14 +408,19 @@ function gapCardCells(
   writer.slotCellIds.set(slot.id, cardId);
 }
 
+/**
+ * One tree node. Nodes are laid out side by side rather than spatially nested,
+ * so every node is a container at the page root and only its own cards are
+ * re-based onto its frame. Returns the container id so links can target it.
+ */
 function domainCells(
   writer: CellWriter,
-  box: DomainBox,
-  parent: string,
+  node: DomainNode,
   theme: ThemeTokens,
   avatars: Record<string, string>,
-): void {
-  const stroke = box.color ?? theme.accent;
+): string {
+  const stroke = node.color ?? theme.accent;
+  const isRoot = node.depth === 0;
 
   const groupId = vertex(writer, {
     value: "",
@@ -421,28 +430,27 @@ function domainCells(
       `fillColor=${theme.cardBackgroundFlat}`,
       "opacity=40",
       `strokeColor=${stroke}`,
-      "strokeWidth=2",
+      `strokeWidth=${isRoot ? 3 : 2}`,
       "html=1",
       "verticalAlign=top",
       "container=1",
       "collapsible=0",
     ].join(";"),
-    x: box.x,
-    y: box.y,
-    width: box.width,
-    height: box.height,
-    parent,
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    parent: "1",
   });
 
-  const label = box.domain.displayName ?? box.domain.name;
   vertex(writer, {
-    value: label,
+    value: domainLabel(node.domain),
     style: [
       "rounded=0",
-      `fillColor=${box.color ?? "#3a2a15"}`,
+      `fillColor=${node.color ?? "#3a2a15"}`,
       `strokeColor=${stroke}`,
       `fontColor=${theme.textPrimary}`,
-      "fontSize=16",
+      `fontSize=${isRoot ? 16 : 13}`,
       "fontStyle=1",
       "html=1",
       "align=left",
@@ -451,14 +459,14 @@ function domainCells(
     ].join(";"),
     x: 0,
     y: 0,
-    width: box.width,
-    height: 40,
+    width: node.width,
+    height: node.headerHeight,
     parent: groupId,
   });
 
-  if (box.gapCount > 0) {
+  if (node.gapCount > 0) {
     vertex(writer, {
-      value: String(box.gapCount),
+      value: String(node.gapCount),
       style: [
         "ellipse",
         `fillColor=${theme.priority.critical}`,
@@ -470,17 +478,17 @@ function domainCells(
         "align=center",
         "verticalAlign=middle",
       ].join(";"),
-      x: box.width - 34,
-      y: 10,
+      x: node.width - 32,
+      y: (node.headerHeight - 22) / 2,
       width: 22,
       height: 22,
       parent: groupId,
     });
   }
 
-  // Slots carry absolute coords; convert to the group's frame.
-  for (const slot of box.slots) {
-    const relative = { ...slot, x: slot.x - box.x, y: slot.y - box.y } as Slot;
+  // Slots carry absolute coords; convert to the container's frame.
+  for (const slot of node.slots) {
+    const relative = { ...slot, x: slot.x - node.x, y: slot.y - node.y } as Slot;
     if (relative.kind === "gap") {
       gapCardCells(writer, relative, groupId, theme);
     } else {
@@ -488,40 +496,39 @@ function domainCells(
     }
   }
 
-  for (const child of box.children) {
-    const shifted: DomainBox = { ...child, x: child.x - box.x, y: child.y - box.y };
-    domainCells(writer, shifted, groupId, theme, avatars);
-  }
+  return groupId;
 }
 
-export function toDrawioXML(config: Config, options: DrawioOptions = {}): string {
-  const theme = getTheme(config.theme);
-  const layout = computeLayout(config, layoutFromTheme(theme));
-  const avatars = options.avatars ?? {};
-  const writer = createWriter();
+/** Renders one top-level domain's tree into a `<diagram>` page body. */
+function pageCells(
+  layout: DomainTreeLayout,
+  theme: ThemeTokens,
+  avatars: Record<string, string>,
+  prefix: string,
+): string[] {
+  const writer = createWriter(prefix);
+  const nodeCellIds = new Map<string, string>();
 
-  for (const box of layout.boxes) {
-    domainCells(writer, box, "1", theme, avatars);
+  for (const node of layout.nodes) {
+    nodeCellIds.set(node.id, domainCells(writer, node, theme, avatars));
   }
 
-  for (const loan of layout.edges) {
-    const source = writer.slotCellIds.get(loan.sourceSlotId);
-    const target = loan.targetSlotId ? writer.slotCellIds.get(loan.targetSlotId) : undefined;
+  // Solid parent-to-child connectors; dashed styling stays reserved for loans.
+  for (const link of layout.links) {
+    const [fromId, toId] = link.id.split("->");
+    const source = nodeCellIds.get(fromId);
+    const target = nodeCellIds.get(toId);
     if (!source || !target) continue;
 
     edge(writer, {
-      value: `${loan.role ?? "借调"} ${Math.round(loan.ratio * 100)}%`,
+      value: "",
       style: [
         "edgeStyle=orthogonalEdgeStyle",
         "rounded=1",
-        "dashed=1",
-        "dashPattern=6 4",
-        `strokeColor=${theme.loanArrow}`,
+        "dashed=0",
+        `strokeColor=${theme.accent}`,
         "strokeWidth=2",
-        "endArrow=block",
-        "endFill=1",
-        `fontColor=${theme.loanArrow}`,
-        "fontSize=10",
+        "endArrow=none",
         "html=1",
         "exitX=0.5",
         "exitY=1",
@@ -534,20 +541,39 @@ export function toDrawioXML(config: Config, options: DrawioOptions = {}): string
     });
   }
 
-  const name = options.diagramName ?? config.meta?.title ?? "Atlas";
+  return writer.cells;
+}
+
+/** One `<diagram>` page per top-level domain, all inside a single `<mxfile>`. */
+export function toDrawioXML(config: Config, options: DrawioOptions = {}): string {
+  const theme = getTheme(config.theme);
+  const avatars = options.avatars ?? {};
+  const layoutOptions = layoutFromTheme(theme);
+
+  const diagrams = config.domains.map((domain, index) => {
+    const layout = computeDomainTreeLayout(config, domain, layoutOptions);
+    const cells = pageCells(layout, theme, avatars, `p${index + 1}`);
+    const width = Math.ceil(layout.width);
+    const height = Math.ceil(layout.height);
+
+    return [
+      `  <diagram id="atlas-page-${index + 1}" name="${escapeAttr(domainLabel(domain))}">`,
+      `    <mxGraphModel dx="${width}" dy="${height}" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="${width}" pageHeight="${height}" background="${theme.cardBackgroundFlat}" math="0" shadow="0">`,
+      `      <root>`,
+      `        <mxCell id="0" />`,
+      `        <mxCell id="1" parent="0" />`,
+      ...cells,
+      `      </root>`,
+      `    </mxGraphModel>`,
+      `  </diagram>`,
+    ].join("\n");
+  });
+
   const modified = new Date().toISOString();
 
   return [
     `<mxfile host="atlas" modified="${modified}" agent="atlas" version="24.0.0" type="device">`,
-    `  <diagram id="atlas-domain-map" name="${escapeAttr(name)}">`,
-    `    <mxGraphModel dx="${layout.width}" dy="${layout.height}" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="${layout.width}" pageHeight="${layout.height}" background="${theme.cardBackgroundFlat}" math="0" shadow="0">`,
-    `      <root>`,
-    `        <mxCell id="0" />`,
-    `        <mxCell id="1" parent="0" />`,
-    ...writer.cells,
-    `      </root>`,
-    `    </mxGraphModel>`,
-    `  </diagram>`,
+    ...diagrams,
     `</mxfile>`,
     ``,
   ].join("\n");

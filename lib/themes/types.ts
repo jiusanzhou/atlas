@@ -37,6 +37,12 @@ export interface ThemeTokens {
   loanBadgeBackground: string;
   loanBadgeText: string;
   loanArrow: string;
+  /** Orange-ish: this person is lent out to another top-level domain. */
+  loanOutBackground: string;
+  /** Blue-ish: this person is borrowed in from another top-level domain. */
+  loanInBackground: string;
+  /** Parent-to-child connector in the domain tree. Solid, not dashed. */
+  treeLink: string;
   rarity: Record<Rarity, RarityStyle>;
   priority: Record<Priority, string>;
   /** Font stack shared by web render and drawio export. */

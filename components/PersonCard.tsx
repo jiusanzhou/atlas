@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Crown, ArrowRight, ArrowLeft } from "lucide-react";
+import { Crown } from "lucide-react";
 import { resolveAvatarSync } from "@/lib/avatar";
 import type { PersonSlot } from "@/lib/layout";
 import type { ThemeTokens } from "@/lib/themes/types";
+import { LoanBadge } from "./LoanBadge";
 
 interface PersonCardProps {
   slot: PersonSlot;
@@ -19,7 +20,6 @@ export function PersonCard({ slot, theme, still = false }: PersonCardProps) {
   const isLead = kind === "lead";
   const avatar = resolveAvatarSync(person, { size: theme.card.avatarSize });
   const tags = (person.tags ?? []).slice(0, 3);
-  const outgoing = slot.loans[0];
 
   return (
     <motion.div
@@ -80,26 +80,7 @@ export function PersonCard({ slot, theme, still = false }: PersonCardProps) {
         </div>
       )}
 
-      {outgoing && (
-        <div
-          className="absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
-          style={{ background: theme.loanBadgeBackground, color: theme.loanBadgeText }}
-          title={outgoing.role ? `借调至 ${outgoing.domain}：${outgoing.role}` : undefined}
-        >
-          <ArrowRight size={10} strokeWidth={3} />
-          {outgoing.domain} {Math.round(outgoing.ratio * 100)}%
-        </div>
-      )}
-
-      {slot.onLoanFrom && (
-        <div
-          className="absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
-          style={{ background: theme.loanBadgeBackground, color: theme.loanBadgeText }}
-        >
-          <ArrowLeft size={10} strokeWidth={3} />
-          {slot.onLoanFrom} {Math.round((slot.loanRatio ?? 0) * 100)}%
-        </div>
-      )}
+      <LoanBadge badges={slot.badges} theme={theme} />
 
       <div className="relative z-10 flex h-full flex-col items-center px-3 pb-3 pt-5">
         <div

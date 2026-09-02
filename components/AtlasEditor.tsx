@@ -3,10 +3,11 @@
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { Download, ImageDown, Loader2, Palette, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigInput } from "@/components/ConfigInput";
 import { DomainTree } from "@/components/DomainTree";
 import { ConfigError, parseConfig, type ConfigFormat } from "@/lib/parser";
-import { totalGaps } from "@/lib/layout";
+import { domainGaps, domainLabel, totalGaps } from "@/lib/layout";
 import { THEMES, type Config, type ThemeName } from "@/lib/schema";
 import { getTheme } from "@/lib/themes";
 
@@ -80,6 +81,14 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
 
   const activeTheme = getTheme(config?.theme);
 
+  const domains = config?.domains ?? [];
+  const [activeDomain, setActiveDomain] = useState<string | null>(null);
+
+  // Derived rather than synced: editing the config can rename or drop the
+  // selected domain, and this falls back to the first one without an effect.
+  const currentDomain =
+    domains.find((domain) => domain.name === activeDomain)?.name ?? domains[0]?.name ?? null;
+
   const cycleTheme = useCallback(() => {
     const current = config?.theme ?? "hearthstone";
     const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
@@ -104,7 +113,8 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
         }
 
         const title = config.meta?.title ?? "atlas";
-        triggerDownload(await response.blob(), `${title}.${kind === "drawio" ? "drawio" : "png"}`);
+        // PNG export is a zip: one image per top-level domain.
+        triggerDownload(await response.blob(), `${title}.${kind === "drawio" ? "drawio" : "zip"}`);
       } catch (error) {
         setExportError(error instanceof Error ? error.message : "导出失败");
       } finally {
@@ -168,7 +178,7 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
             className="h-8 bg-amber-600 text-xs text-zinc-950 hover:bg-amber-500"
           >
             {busy === "png" ? <Loader2 size={14} className="animate-spin" /> : <ImageDown size={14} />}
-            导出 PNG
+            导出 PNG (zip)
           </Button>
         </div>
       </header>
@@ -192,16 +202,51 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
           />
         </aside>
 
-        <section
-          className="min-h-0 flex-1 overflow-auto p-6"
-          style={{ background: activeTheme.canvasBackground }}
-        >
-          {config ? (
-            <DomainTree config={config} />
-          ) : (
+        <section className="flex min-h-0 flex-1 flex-col">
+          {!config ? (
             <div className="flex h-full items-center justify-center text-sm text-zinc-500">
               修正左侧配置后即可预览
             </div>
+          ) : domains.length === 0 || !currentDomain ? (
+            <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+              配置中还没有顶层领域，添加一个 domains 条目后即可看到图
+            </div>
+          ) : (
+            <Tabs
+              value={currentDomain}
+              onValueChange={setActiveDomain}
+              className="flex min-h-0 flex-1 flex-col gap-0"
+            >
+              <TabsList
+                variant="line"
+                className="h-auto w-full shrink-0 flex-wrap justify-start gap-1 overflow-x-auto rounded-none border-b border-zinc-800 bg-zinc-900/60 px-4 py-2"
+              >
+                {domains.map((domain) => {
+                  const gaps = domainGaps(domain);
+                  return (
+                    <TabsTrigger
+                      key={domain.name}
+                      value={domain.name}
+                      className="h-8 flex-none px-3 text-xs text-zinc-400 data-[state=active]:text-zinc-50"
+                    >
+                      {domainLabel(domain)}
+                      {gaps > 0 && <span className="text-red-400">缺 {gaps}</span>}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+
+              {domains.map((domain) => (
+                <TabsContent
+                  key={domain.name}
+                  value={domain.name}
+                  className="min-h-0 flex-1 overflow-auto p-6"
+                  style={{ background: activeTheme.canvasBackground }}
+                >
+                  <DomainTree config={config} domain={domain} />
+                </TabsContent>
+              ))}
+            </Tabs>
           )}
         </section>
       </div>

@@ -1,7 +1,7 @@
 meta:
   title: 技术中台组织架构
-  description: 基础设施、应用平台、数据与算法四大方向的领域负责人、核心成员与人力缺口
-  version: "1.0.0"
+  description: 基础设施、应用平台与数据三大方向的领域负责人、核心成员与人力缺口
+  version: "1.1.0"
 
 theme: hearthstone
 
@@ -9,6 +9,7 @@ domains:
   - name: infra
     displayName: 基础设施
     lead: torvalds
+    members: [pcarrier]
     color: "#4a3113"
     description: 内核、网络、计算与存储底座
     subdomains:
@@ -23,12 +24,26 @@ domains:
       - name: storage
         displayName: 存储
         lead: antirez
-        members: [pcarrier]
+        description: 自研 KV 与对象存储
+        subdomains:
+          - name: objectstore
+            displayName: 对象存储
+            lead: bcantrill
+            gaps:
+              - role: 分布式存储专家
+                count: 1
+                priority: critical
+                note: 自研纠删码引擎缺主力
+          - name: blockstore
+            displayName: 块存储
+            lead: kelseyhightower
+      - name: network
+        displayName: 网络
+        lead: bhorowitz
         gaps:
-          - role: 分布式存储专家
+          - role: 网络工程师
             count: 1
-            priority: critical
-            note: 自研 KV 引擎缺主力
+            priority: medium
 
   - name: platform
     displayName: 应用平台
@@ -36,10 +51,21 @@ domains:
     color: "#3f2a4a"
     description: 研发框架、CI/CD 与服务治理
     subdomains:
+      - name: web
+        displayName: Web
+        lead: gaearon
+        members: [yyx990803]
+        description: 组件体系与渲染性能
+      - name: mobile
+        displayName: 移动端
+        lead: jeresig
+        gaps:
+          - role: iOS 工程师
+            count: 2
+            priority: high
       - name: devex
         displayName: 研发效能
         lead: matz
-        members: [jeresig]
         gaps:
           - role: 构建工程师
             count: 1
@@ -54,25 +80,14 @@ domains:
       - name: warehouse
         displayName: 数仓与建模
         lead: wesm
-
-  - name: frontend
-    displayName: 前端
-    lead: gaearon
-    members: [yyx990803]
-    color: "#1a3a4a"
-    description: Web 架构、组件体系与渲染性能
-
-  - name: algo
-    displayName: 算法
-    lead: karpathy
-    members: []
-    color: "#4a1f2a"
-    description: 推荐、NLP 与模型工程
-    gaps:
-      - role: 推荐算法工程师
-        count: 3
-        priority: critical
-        note: 新业务线冷启动
+      - name: streaming
+        displayName: 实时计算
+        lead: karpathy
+        gaps:
+          - role: 流计算工程师
+            count: 2
+            priority: critical
+            note: 实时指标链路待补齐
 
 people:
   - id: torvalds
@@ -99,14 +114,36 @@ people:
     tags: [Redis, C, 存储引擎]
     rarity: epic
     lendTo:
-      - domain: data
+      - domain: streaming
         ratio: 0.3
         role: 实时存储选型
+
+  - id: bcantrill
+    name: Bryan Cantrill
+    title: 对象存储负责人
+    homeDomain: objectstore
+    avatar: github:bcantrill
+    tags: [Rust, 系统, 可观测性]
+    rarity: epic
+
+  - id: kelseyhightower
+    name: Kelsey Hightower
+    title: 块存储负责人
+    homeDomain: blockstore
+    avatar: github:kelseyhightower
+    tags: [Kubernetes, 运维]
+
+  - id: bhorowitz
+    name: Ben Horowitz
+    title: 网络负责人
+    homeDomain: network
+    avatar: github:bhorowitz
+    tags: [SDN, TCP]
 
   - id: pcarrier
     name: Pierre Carrier
     title: 存储工程师
-    homeDomain: storage
+    homeDomain: infra
     avatar: gravatar:pierre@example.com
     tags: [Ceph, 一致性]
 
@@ -126,14 +163,14 @@ people:
     tags: [Ruby, DSL, 工具链]
     rarity: epic
     lendTo:
-      - domain: infra
+      - domain: compute
         ratio: 0.4
         role: 内部工具链治理
 
   - id: jeresig
     name: John Resig
-    title: 高级工程师
-    homeDomain: devex
+    title: 移动端负责人
+    homeDomain: mobile
     avatar: github:jeresig
     tags: [JavaScript, 测试]
 
@@ -153,14 +190,14 @@ people:
     tags: [Arrow, Pandas, 列式存储]
     rarity: epic
     lendTo:
-      - domain: algo
+      - domain: web
         ratio: 0.25
-        role: 特征工程管道
+        role: 指标看板数据层
 
   - id: gaearon
     name: Dan Abramov
-    title: 前端负责人
-    homeDomain: frontend
+    title: Web 负责人
+    homeDomain: web
     avatar: github:gaearon
     tags: [React, 状态管理, DX]
     rarity: legendary
@@ -168,15 +205,19 @@ people:
   - id: yyx990803
     name: Evan You
     title: 前端架构师
-    homeDomain: frontend
+    homeDomain: web
     avatar: github:yyx990803
     tags: [Vue, Vite, 构建]
     rarity: epic
+    lendTo:
+      - domain: devex
+        ratio: 0.2
+        role: 构建工具链
 
   - id: karpathy
     name: Andrej Karpathy
-    title: 算法负责人
-    homeDomain: algo
+    title: 实时计算负责人
+    homeDomain: streaming
     avatar: github:karpathy
-    tags: [深度学习, NLP, 模型工程]
+    tags: [深度学习, 流处理, 模型工程]
     rarity: legendary

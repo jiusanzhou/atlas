@@ -1,4 +1,4 @@
-import { hierarchy, type HierarchyNode } from "d3-hierarchy";
+import { hierarchy, tree, type HierarchyPointNode } from "d3-hierarchy";
 import type { Config, Domain, Gap, Person, Rarity } from "./schema";
 import type { ThemeTokens } from "./themes/types";
 
@@ -6,20 +6,28 @@ export interface LayoutOptions {
   cardWidth: number;
   cardHeight: number;
   cardGap: number;
+  /** Max columns in a domain node's people grid; narrow nodes use fewer. */
   columns: number;
   padding: number;
-  bannerHeight: number;
-  sectionGap: number;
+  headerHeight: number;
+  /** Minimum node width so a person-less domain still reads as a banner. */
+  minNodeWidth: number;
+  /** Horizontal breathing room between sibling nodes on the same level. */
+  nodeGapX: number;
+  /** Vertical distance between the bottom of one level and the top of the next. */
+  levelGapY: number;
 }
 
 export const DEFAULT_LAYOUT: LayoutOptions = {
   cardWidth: 240,
   cardHeight: 340,
-  cardGap: 20,
+  cardGap: 16,
   columns: 3,
-  padding: 24,
-  bannerHeight: 52,
-  sectionGap: 28,
+  padding: 16,
+  headerHeight: 44,
+  minNodeWidth: 260,
+  nodeGapX: 48,
+  levelGapY: 96,
 };
 
 export function layoutFromTheme(theme: ThemeTokens, overrides: Partial<LayoutOptions> = {}) {
@@ -31,16 +39,22 @@ export function layoutFromTheme(theme: ThemeTokens, overrides: Partial<LayoutOpt
   } satisfies LayoutOptions;
 }
 
-export type SlotKind = "lead" | "member" | "gap";
+/** Cross-domain signal shown as a corner badge instead of a cross-tab arrow. */
+export interface LoanBadgeInfo {
+  direction: "out" | "in";
+  /**
+   * Loan target for `out`, the person's home domain for `in`. Resolved to the
+   * domain's displayName when it has one, since config ids are rarely readable.
+   */
+  domain: string;
+  ratio: number;
+  role?: string;
+}
 
 export interface PersonSlot {
   kind: "lead" | "member";
   person: Person;
-  /** Loans out of this domain, shown as a corner badge. */
-  loans: { domain: string; ratio: number; role?: string }[];
-  /** Set when the person's home domain differs from where the card is drawn. */
-  onLoanFrom?: string;
-  loanRatio?: number;
+  badges: LoanBadgeInfo[];
   rarity: Rarity;
   x: number;
   y: number;
@@ -66,36 +80,38 @@ type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K>
 
 export type UnplacedSlot = DistributiveOmit<Slot, "x" | "y">;
 
-export interface DomainBox {
+export interface DomainNode {
   domain: Domain;
   depth: number;
-  /** Absolute canvas coordinates. */
+  /** Absolute canvas coordinates of the node box. */
   x: number;
   y: number;
   width: number;
   height: number;
+  headerHeight: number;
+  /** Slots carry absolute coordinates too, matching v1's contract. */
   slots: Slot[];
-  children: DomainBox[];
+  children: DomainNode[];
   gapCount: number;
   color?: string;
   id: string;
 }
 
-export interface LoanEdge {
-  personId: string;
-  personName: string;
-  fromDomain: string;
-  toDomain: string;
-  ratio: number;
-  role?: string;
-  /** Card ids so the web overlay can anchor the arrow to real DOM nodes. */
-  sourceSlotId: string;
-  targetSlotId?: string;
+/** Parent-bottom to child-top connector, in absolute canvas coordinates. */
+export interface TreeLink {
+  id: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
 }
 
-export interface LayoutResult {
-  boxes: DomainBox[];
-  edges: LoanEdge[];
+export interface DomainTreeLayout {
+  /** The top-level domain this diagram belongs to. */
+  root: DomainNode;
+  /** Flattened breadth-order node list for renderers that avoid DOM nesting. */
+  nodes: DomainNode[];
+  links: TreeLink[];
   width: number;
   height: number;
   options: LayoutOptions;
@@ -120,215 +136,291 @@ function countGapsDeep(domain: Domain): number {
   return own + nested;
 }
 
-/**
- * Two-pass layout: measure each domain bottom-up (so a parent knows how tall
- * its children are), then assign absolute positions top-down.
- */
-export function computeLayout(config: Config, options: LayoutOptions = DEFAULT_LAYOUT): LayoutResult {
-  const peopleById = new Map(config.people.map((person) => [person.id, person]));
+interface Measured {
+  domain: Domain;
+  slots: UnplacedSlot[];
+  children: Measured[];
+  width: number;
+  height: number;
+  gridHeight: number;
+  columns: number;
+}
 
-  interface Measured {
-    domain: Domain;
-    depth: number;
-    slots: UnplacedSlot[];
-    children: Measured[];
-    width: number;
-    height: number;
-    gridHeight: number;
-  }
+/** Collects the cards attached to one domain node: lead, members, loans in, gaps. */
+function collectSlots(
+  config: Config,
+  domain: Domain,
+  peopleById: Map<string, Person>,
+  labelOf: (name: string) => string,
+  options: LayoutOptions,
+): UnplacedSlot[] {
+  const slots: UnplacedSlot[] = [];
+  const seen = new Set<string>();
 
-  const measure = (domain: Domain, depth: number): Measured => {
-    const slots: UnplacedSlot[] = [];
-    const seen = new Set<string>();
-
-    const pushPerson = (person: Person, kind: "lead" | "member") => {
-      if (seen.has(person.id)) return;
-      seen.add(person.id);
-
-      const loans = (person.lendTo ?? []).map((loan) => ({
-        domain: loan.domain,
+  const badgesFor = (person: Person): LoanBadgeInfo[] => {
+    const isHome = person.homeDomain === domain.name;
+    if (isHome) {
+      return (person.lendTo ?? []).map((loan) => ({
+        direction: "out" as const,
+        domain: labelOf(loan.domain),
         ratio: loan.ratio,
         role: loan.role,
       }));
+    }
 
+    // Listed here but living elsewhere: a borrow, with the ratio if declared.
+    if (!person.homeDomain) return [];
+    const loan = (person.lendTo ?? []).find((entry) => entry.domain === domain.name);
+    return [
+      {
+        direction: "in",
+        domain: labelOf(person.homeDomain),
+        ratio: loan?.ratio ?? 1,
+        role: loan?.role,
+      },
+    ];
+  };
+
+  const pushPerson = (person: Person, kind: "lead" | "member") => {
+    if (seen.has(person.id)) return;
+    seen.add(person.id);
+    slots.push({
+      kind,
+      person,
+      badges: badgesFor(person),
+      rarity: inferRarity(person, kind === "lead"),
+      width: options.cardWidth,
+      height: options.cardHeight,
+      id: slotId(domain.name, person.id),
+    });
+  };
+
+  if (domain.lead) {
+    const lead = peopleById.get(domain.lead);
+    if (lead) pushPerson(lead, "lead");
+  }
+  for (const memberId of domain.members ?? []) {
+    const person = peopleById.get(memberId);
+    if (person) pushPerson(person, "member");
+  }
+
+  // People lent into this domain render here as well, badged as borrowed in.
+  for (const person of config.people) {
+    for (const loan of person.lendTo ?? []) {
+      if (loan.domain !== domain.name || seen.has(person.id)) continue;
+      seen.add(person.id);
       slots.push({
-        kind,
+        kind: "member",
         person,
-        loans,
-        rarity: inferRarity(person, kind === "lead"),
+        badges: [
+          {
+            direction: "in",
+            domain: person.homeDomain ? labelOf(person.homeDomain) : "外部",
+            ratio: loan.ratio,
+            role: loan.role,
+          },
+        ],
+        rarity: inferRarity(person, false),
         width: options.cardWidth,
         height: options.cardHeight,
         id: slotId(domain.name, person.id),
       });
-    };
-
-    if (domain.lead) {
-      const lead = peopleById.get(domain.lead);
-      if (lead) pushPerson(lead, "lead");
     }
-    for (const memberId of domain.members ?? []) {
-      const person = peopleById.get(memberId);
-      if (person) pushPerson(person, "member");
-    }
+  }
 
-    // People lent into this domain from elsewhere render here too.
-    for (const person of config.people) {
-      for (const loan of person.lendTo ?? []) {
-        if (loan.domain !== domain.name || seen.has(person.id)) continue;
-        seen.add(person.id);
-        slots.push({
-          kind: "member",
-          person,
-          loans: [],
-          onLoanFrom: person.homeDomain ?? "外部",
-          loanRatio: loan.ratio,
-          rarity: inferRarity(person, false),
-          width: options.cardWidth,
-          height: options.cardHeight,
-          id: slotId(domain.name, person.id),
-        });
-      }
-    }
+  for (const [index, gap] of (domain.gaps ?? []).entries()) {
+    slots.push({
+      kind: "gap",
+      gap,
+      width: options.cardWidth,
+      height: options.cardHeight,
+      id: slotId(domain.name, `gap-${index}`),
+    });
+  }
 
-    for (const [index, gap] of (domain.gaps ?? []).entries()) {
-      slots.push({
-        kind: "gap",
-        gap,
-        width: options.cardWidth,
-        height: options.cardHeight,
-        id: slotId(domain.name, `gap-${index}`),
-      });
-    }
+  return slots;
+}
 
-    const columns = Math.max(1, options.columns);
-    const rows = Math.ceil(slots.length / columns) || 0;
+function measure(
+  config: Config,
+  domain: Domain,
+  peopleById: Map<string, Person>,
+  labelOf: (name: string) => string,
+  options: LayoutOptions,
+): Measured {
+  const slots = collectSlots(config, domain, peopleById, labelOf, options);
+
+  // A single-person domain should not be as wide as a full three-up grid.
+  const columns = Math.max(1, Math.min(options.columns, slots.length || 1));
+  const rows = Math.ceil(slots.length / columns);
+  const gridWidth = columns * options.cardWidth + (columns - 1) * options.cardGap;
+  const gridHeight =
+    rows === 0 ? 0 : rows * options.cardHeight + (rows - 1) * options.cardGap;
+
+  const width = Math.max(
+    options.minNodeWidth,
+    (slots.length > 0 ? gridWidth : 0) + options.padding * 2,
+  );
+  const height =
+    options.headerHeight + (gridHeight > 0 ? options.padding + gridHeight + options.padding : 0);
+
+  const children = (domain.subdomains ?? []).map((sub) =>
+    measure(config, sub, peopleById, labelOf, options),
+  );
+
+  return { domain, slots, children, width, height, gridHeight, columns };
+}
+
+/** Config-wide name -> displayName lookup, so badges read like the tab titles. */
+function buildLabelLookup(config: Config): (name: string) => string {
+  const labels = new Map<string, string>();
+  const walk = (domains: Domain[]) => {
+    for (const domain of domains) {
+      labels.set(domain.name, domainLabel(domain));
+      if (domain.subdomains?.length) walk(domain.subdomains);
+    }
+  };
+  walk(config.domains);
+  return (name) => labels.get(name) ?? name;
+}
+
+/**
+ * Tidy tree for one top-level domain. Node widths vary, so d3's `nodeSize` x is
+ * kept at 1 unit = 1px and the real spacing is expressed through `separation`.
+ * Level y is computed manually because node heights also vary per depth.
+ */
+export function computeDomainTreeLayout(
+  config: Config,
+  domain: Domain,
+  options: LayoutOptions = DEFAULT_LAYOUT,
+): DomainTreeLayout {
+  const peopleById = new Map(config.people.map((person) => [person.id, person]));
+  const measured = measure(config, domain, peopleById, buildLabelLookup(config), options);
+
+  // `tree()` returns the same node objects with x/y assigned; the point-typed
+  // result is what makes those coordinates non-optional.
+  const root = tree<Measured>()
+    .nodeSize([1, 1])
+    .separation((a, b) => {
+      const half = (a.data.width + b.data.width) / 2;
+      // Cousins get extra room so subtree groupings stay legible.
+      return half + (a.parent === b.parent ? options.nodeGapX : options.nodeGapX * 1.6);
+    })(hierarchy(measured, (node) => (node.children.length ? node.children : null)));
+
+  const descendants = root.descendants();
+
+  const levelHeight = new Map<number, number>();
+  for (const node of descendants) {
+    levelHeight.set(node.depth, Math.max(levelHeight.get(node.depth) ?? 0, node.data.height));
+  }
+
+  const levelY = new Map<number, number>();
+  let cursorY = options.padding;
+  for (let depth = 0; depth <= root.height; depth += 1) {
+    levelY.set(depth, cursorY);
+    cursorY += (levelHeight.get(depth) ?? 0) + options.levelGapY;
+  }
+  const contentHeight = cursorY - options.levelGapY + options.padding;
+
+  const minX = Math.min(...descendants.map((node) => node.x - node.data.width / 2));
+  const maxX = Math.max(...descendants.map((node) => node.x + node.data.width / 2));
+  const offsetX = options.padding - minX;
+
+  const boxOf = new Map<HierarchyPointNode<Measured>, DomainNode>();
+
+  // Build boxes first so children can be attached without a second traversal.
+  for (const node of descendants) {
+    const width = node.data.width;
+    const x = node.x - width / 2 + offsetX;
+    const y = levelY.get(node.depth) ?? options.padding;
+
+    const columns = node.data.columns;
     const gridWidth =
       columns * options.cardWidth + (columns - 1) * options.cardGap;
-    const gridHeight =
-      rows === 0 ? 0 : rows * options.cardHeight + (rows - 1) * options.cardGap;
+    // Centre the grid inside the node, which may be wider due to minNodeWidth.
+    const gridX = x + (width - gridWidth) / 2;
+    const gridY = y + options.headerHeight + options.padding;
 
-    const children = (domain.subdomains ?? []).map((sub) => measure(sub, depth + 1));
-    const childrenHeight = children.reduce(
-      (sum, child, index) => sum + child.height + (index > 0 ? options.sectionGap : 0),
-      0,
-    );
-    const childrenWidth = children.reduce((max, child) => Math.max(max, child.width), 0);
+    const slots: Slot[] = node.data.slots.map((slot, index) => ({
+      ...slot,
+      x: gridX + (index % columns) * (options.cardWidth + options.cardGap),
+      y: gridY + Math.floor(index / columns) * (options.cardHeight + options.cardGap),
+    })) as Slot[];
 
-    const innerWidth = Math.max(gridWidth, childrenWidth);
-    const width = innerWidth + options.padding * 2;
-
-    let height = options.bannerHeight + options.padding;
-    if (gridHeight > 0) height += gridHeight;
-    if (children.length > 0) {
-      if (gridHeight > 0) height += options.sectionGap;
-      height += childrenHeight;
-    }
-    height += options.padding;
-
-    return { domain, depth, slots, children, width, height, gridHeight };
-  };
-
-  const place = (node: Measured, x: number, y: number): DomainBox => {
-    const columns = Math.max(1, options.columns);
-    const innerX = x + options.padding;
-    let cursorY = y + options.bannerHeight + options.padding;
-
-    const slots: Slot[] = node.slots.map((slot, index) => {
-      const column = index % columns;
-      const row = Math.floor(index / columns);
-      return {
-        ...slot,
-        x: innerX + column * (options.cardWidth + options.cardGap),
-        y: cursorY + row * (options.cardHeight + options.cardGap),
-      } as Slot;
-    });
-
-    if (node.gridHeight > 0) cursorY += node.gridHeight;
-    if (node.children.length > 0 && node.gridHeight > 0) cursorY += options.sectionGap;
-
-    const children: DomainBox[] = [];
-    for (const [index, child] of node.children.entries()) {
-      if (index > 0) cursorY += options.sectionGap;
-      const box = place(child, innerX, cursorY);
-      children.push(box);
-      cursorY += child.height;
-    }
-
-    return {
-      domain: node.domain,
+    boxOf.set(node, {
+      domain: node.data.domain,
       depth: node.depth,
       x,
       y,
-      width: node.width,
-      height: node.height,
+      width,
+      height: node.data.height,
+      headerHeight: options.headerHeight,
       slots,
-      children,
-      gapCount: countGapsDeep(node.domain),
-      color: node.domain.color,
-      id: node.domain.name,
-    };
-  };
-
-  const measured = config.domains.map((domain) => measure(domain, 0));
-
-  const boxes: DomainBox[] = [];
-  let cursorY = options.padding;
-  let maxWidth = 0;
-  for (const node of measured) {
-    boxes.push(place(node, options.padding, cursorY));
-    cursorY += node.height + options.sectionGap;
-    maxWidth = Math.max(maxWidth, node.width);
+      children: [],
+      gapCount: countGapsDeep(node.data.domain),
+      color: node.data.domain.color,
+      id: node.data.domain.name,
+    });
   }
 
-  const slotIndex = new Map<string, Slot>();
-  const collect = (box: DomainBox) => {
-    for (const slot of box.slots) slotIndex.set(slot.id, slot);
-    box.children.forEach(collect);
-  };
-  boxes.forEach(collect);
-
-  const edges: LoanEdge[] = [];
-  for (const person of config.people) {
-    for (const loan of person.lendTo ?? []) {
-      const from = person.homeDomain;
-      if (!from) continue;
-      const sourceSlotId = slotId(from, person.id);
-      const targetSlotId = slotId(loan.domain, person.id);
-      if (!slotIndex.has(sourceSlotId)) continue;
-
-      edges.push({
-        personId: person.id,
-        personName: person.name,
-        fromDomain: from,
-        toDomain: loan.domain,
-        ratio: loan.ratio,
-        role: loan.role,
-        sourceSlotId,
-        targetSlotId: slotIndex.has(targetSlotId) ? targetSlotId : undefined,
+  const links: TreeLink[] = [];
+  for (const node of descendants) {
+    const box = boxOf.get(node);
+    if (!box) continue;
+    for (const child of node.children ?? []) {
+      const childBox = boxOf.get(child);
+      if (!childBox) continue;
+      box.children.push(childBox);
+      links.push({
+        id: `${box.id}->${childBox.id}`,
+        fromX: box.x + box.width / 2,
+        fromY: box.y + box.height,
+        toX: childBox.x + childBox.width / 2,
+        toY: childBox.y,
       });
     }
   }
 
+  const rootBox = boxOf.get(root);
+  if (!rootBox) throw new Error(`领域 "${domain.name}" 布局失败`);
+
   return {
-    boxes,
-    edges,
-    width: maxWidth + options.padding * 2,
-    height: cursorY - options.sectionGap + options.padding,
+    root: rootBox,
+    nodes: descendants.map((node) => boxOf.get(node)).filter((box): box is DomainNode => !!box),
+    links,
+    width: maxX - minX + options.padding * 2,
+    height: contentHeight,
     options,
   };
 }
 
-/**
- * d3-hierarchy view of the domain tree, for callers that need depth/ancestor
- * queries rather than pixel geometry.
- */
-export function domainHierarchy(domains: Domain[]): HierarchyNode<Domain> {
-  const root: Domain = { name: "__root__", subdomains: domains };
-  return hierarchy<Domain>(root, (d) => d.subdomains);
+/** Top-level domains, one per tab / drawio page / exported PNG. */
+export function topLevelDomains(config: Config): Domain[] {
+  return config.domains;
+}
+
+export function domainLabel(domain: Domain): string {
+  return domain.displayName ?? domain.name;
+}
+
+/** Safe for filenames and URL query values across the export paths. */
+export function domainSlug(domain: Domain): string {
+  return domain.name.replace(/[^\w一-龥-]+/g, "-");
+}
+
+export function findTopLevelDomain(config: Config, name: string | undefined): Domain | undefined {
+  if (!name) return undefined;
+  return config.domains.find(
+    (domain) => domain.name === name || domain.displayName === name || domainSlug(domain) === name,
+  );
 }
 
 export function totalGaps(config: Config): number {
   return config.domains.reduce((sum, domain) => sum + countGapsDeep(domain), 0);
+}
+
+export function domainGaps(domain: Domain): number {
+  return countGapsDeep(domain);
 }
 
 export function countPeople(config: Config): number {

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import JSZip from "jszip";
 import type { Browser } from "puppeteer";
 import { ConfigError, parseConfig } from "@/lib/parser";
 import { ConfigSchema, type Config } from "@/lib/schema";
+import { domainLabel } from "@/lib/layout";
 
 interface ExportRequestBody {
   source?: string;
@@ -56,12 +58,23 @@ function originOf(request: Request): string {
   return url.origin;
 }
 
-async function renderPng(
+interface RenderedPng {
+  filename: string;
+  data: Uint8Array;
+}
+
+/** Keeps zip entry names portable across OSes. */
+function safeFilename(value: string): string {
+  return value.replace(/[\\/:*?"<>|]+/g, "-").trim() || "domain";
+}
+
+/** One screenshot per top-level domain, sharing a single browser instance. */
+async function renderDomainPngs(
   config: Config,
   origin: string,
   scale: number,
   width: number | undefined,
-): Promise<Uint8Array> {
+): Promise<RenderedPng[]> {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
@@ -73,31 +86,39 @@ async function renderPng(
       deviceScaleFactor: Math.min(Math.max(scale, 1), 4),
     });
 
-    await page.goto(`${origin}/render?config=${encoded}`, {
-      waitUntil: "networkidle0",
-      timeout: 60_000,
-    });
-
-    const canvas = await page.waitForSelector("#atlas-canvas", { timeout: 30_000 });
-    if (!canvas) throw new Error("渲染页面未产出画布");
-
-    // Avatars are remote; give decoding a beat so cards are not blank.
-    await page.evaluate(async () => {
-      await Promise.all(
-        Array.from(document.images)
-          .filter((img) => !img.complete)
-          .map(
-            (img) =>
-              new Promise<void>((resolve) => {
-                img.addEventListener("load", () => resolve(), { once: true });
-                img.addEventListener("error", () => resolve(), { once: true });
-              }),
-          ),
+    const results: RenderedPng[] = [];
+    for (const domain of config.domains) {
+      await page.goto(
+        `${origin}/render?config=${encoded}&domain=${encodeURIComponent(domain.name)}`,
+        { waitUntil: "networkidle0", timeout: 60_000 },
       );
-      await document.fonts.ready;
-    });
 
-    return await canvas.screenshot({ type: "png" });
+      const canvas = await page.waitForSelector("#atlas-canvas", { timeout: 30_000 });
+      if (!canvas) throw new Error(`领域 "${domain.name}" 渲染页面未产出画布`);
+
+      // Avatars are remote; give decoding a beat so cards are not blank.
+      await page.evaluate(async () => {
+        await Promise.all(
+          Array.from(document.images)
+            .filter((img) => !img.complete)
+            .map(
+              (img) =>
+                new Promise<void>((resolve) => {
+                  img.addEventListener("load", () => resolve(), { once: true });
+                  img.addEventListener("error", () => resolve(), { once: true });
+                }),
+            ),
+        );
+        await document.fonts.ready;
+      });
+
+      results.push({
+        filename: `atlas-${safeFilename(domainLabel(domain))}.png`,
+        data: await canvas.screenshot({ type: "png" }),
+      });
+    }
+
+    return results;
   } finally {
     await browser.close();
   }
@@ -117,25 +138,37 @@ export async function POST(request: Request) {
         ? parseConfig(body.source).config
         : ConfigSchema.parse(body.config);
 
-    const png = await renderPng(
+    const pngs = await renderDomainPngs(
       config,
       originOf(request),
       body.scale ?? 2,
       body.width,
     );
 
-    return new NextResponse(png as BodyInit, {
+    const zip = new JSZip();
+    for (const png of pngs) zip.file(png.filename, png.data);
+    const archive = await zip.generateAsync({
+      type: "uint8array",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 },
+    });
+
+    const title = safeFilename(config.meta?.title ?? "atlas");
+    const filename = `atlas-${title}.zip`;
+
+    return new NextResponse(archive as BodyInit, {
       headers: {
-        "Content-Type": "image/png",
-        "Content-Length": String(png.byteLength),
-        "Content-Disposition": `attachment; filename="atlas.png"`,
+        "Content-Type": "application/zip",
+        "Content-Length": String(archive.byteLength),
+        // RFC 5987 form keeps non-ASCII titles intact.
+        "Content-Disposition": `attachment; filename="atlas.zip"; filename*=UTF-8''${encodeURIComponent(filename)}`,
       },
     });
   } catch (error) {
     if (error instanceof ConfigError) {
       return NextResponse.json({ error: error.message, issues: error.issues }, { status: 422 });
     }
-    const message = error instanceof Error ? error.message : "导出 PNG 失败";
+    const message = error instanceof Error ? error.message : "导出失败";
     return NextResponse.json(
       { error: `PNG 导出失败：${message}`, hint: "确认 Chrome 可用：pnpm exec puppeteer browsers install chrome-headless-shell" },
       { status: 500 },

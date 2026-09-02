@@ -29,6 +29,9 @@ export const hearthstone: ThemeTokens = {
   loanBadgeBackground: "#a41e22",
   loanBadgeText: "#fff7ed",
   loanArrow: "#c2410c",
+  loanOutBackground: "#c2410c",
+  loanInBackground: "#1d4ed8",
+  treeLink: "rgba(212, 175, 55, 0.5)",
   rarity: {
     common: {
       border: "#a97142",
