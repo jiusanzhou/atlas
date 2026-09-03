@@ -52,6 +52,8 @@ interface CanvasProps {
   gridBackground?: GridBackground;
   /** Base colour behind the grid. */
   background?: string;
+  /** Grid ink; light themes need a dark one to stay visible. */
+  gridColor?: string;
   /** Fraction of the viewport kept empty around the content when fitting. */
   fitPadding?: number;
   className?: string;
@@ -59,15 +61,16 @@ interface CanvasProps {
 
 const GRID_SIZE = 24;
 const IDENTITY: ViewState = { x: 0, y: 0, scale: 1 };
+const DEFAULT_GRID_COLOR = "rgba(255,255,255,0.10)";
 
-function gridImage(kind: GridBackground): string | undefined {
+function gridImage(kind: GridBackground, color: string): string | undefined {
   if (kind === "dots") {
-    return "radial-gradient(circle, rgba(255,255,255,0.10) 1px, transparent 1px)";
+    return `radial-gradient(circle, ${color} 1px, transparent 1px)`;
   }
   if (kind === "lines") {
     return [
-      "linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px)",
-      "linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)",
+      `linear-gradient(to right, ${color} 1px, transparent 1px)`,
+      `linear-gradient(to bottom, ${color} 1px, transparent 1px)`,
     ].join(", ");
   }
   return undefined;
@@ -96,6 +99,7 @@ export function Canvas({
   fitKey,
   gridBackground = "dots",
   background = "#111113",
+  gridColor = DEFAULT_GRID_COLOR,
   fitPadding = 0.05,
   className,
 }: CanvasProps) {
@@ -282,7 +286,7 @@ export function Canvas({
     return () => cancelAnimationFrame(frame);
   }, [initialFit, fitKey, fitToContent]);
 
-  const grid = gridImage(gridBackground);
+  const grid = gridImage(gridBackground, gridColor);
   const gridStep = GRID_SIZE * view.scale;
 
   return (
@@ -311,6 +315,7 @@ export function Canvas({
       >
         <div
           ref={contentRef}
+          data-canvas-layer
           className="absolute left-0 top-0 w-fit origin-top-left will-change-transform"
           style={{ transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})` }}
         >

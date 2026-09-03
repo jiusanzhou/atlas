@@ -5,14 +5,17 @@ export const GOLD = "#d4af37";
 export const hearthstone: ThemeTokens = {
   name: "hearthstone",
   label: "Hearthstone",
+  variant: "card",
   card: {
     width: 240,
     height: 340,
     avatarSize: 120,
     borderRadius: 16,
   },
+  geometry: {},
   cardBackground: "linear-gradient(160deg, #1a1410 0%, #2d1f14 55%, #1d1509 100%)",
   cardBackgroundFlat: "#241a10",
+  cardHoverBackground: "rgba(212, 175, 55, 0.12)",
   accent: GOLD,
   accentSoft: "rgba(212, 175, 55, 0.35)",
   textPrimary: "#f5e6c8",
@@ -21,6 +24,7 @@ export const hearthstone: ThemeTokens = {
   domainBorder: "rgba(212, 175, 55, 0.45)",
   domainBanner: "linear-gradient(90deg, #3a2a15 0%, #6b4d1d 50%, #3a2a15 100%)",
   canvasBackground: "radial-gradient(circle at 50% 0%, #241a10 0%, #120d08 70%)",
+  gridColor: "rgba(255, 255, 255, 0.10)",
   tagBackground: "rgba(0, 0, 0, 0.55)",
   tagText: GOLD,
   gapBorder: "#6b7280",
@@ -31,6 +35,12 @@ export const hearthstone: ThemeTokens = {
   loanArrow: "#c2410c",
   loanOutBackground: "#c2410c",
   loanInBackground: "#1d4ed8",
+  showLoanArrows: false,
+  leadMarker: GOLD,
+  commentMarker: GOLD,
+  panelBackground: "#1a1410",
+  panelBorder: "rgba(212, 175, 55, 0.45)",
+  panelShadow: "0 18px 48px rgba(0, 0, 0, 0.6)",
   treeLink: "rgba(212, 175, 55, 0.5)",
   rarity: {
     common: {

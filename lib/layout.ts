@@ -35,6 +35,8 @@ export function layoutFromTheme(theme: ThemeTokens, overrides: Partial<LayoutOpt
     ...DEFAULT_LAYOUT,
     cardWidth: theme.card.width,
     cardHeight: theme.card.height,
+    // Small-card themes need tighter gaps and more columns than the default.
+    ...theme.geometry,
     ...overrides,
   } satisfies LayoutOptions;
 }
@@ -106,12 +108,36 @@ export interface TreeLink {
   toY: number;
 }
 
+/**
+ * A loan whose lender and borrower both render inside this one tree, so it can
+ * be drawn as an arrow. Cross-tree loans have no second endpoint here and stay
+ * badge-only.
+ */
+export interface LoanLink {
+  id: string;
+  /** Home-domain copy of the person. */
+  fromSlotId: string;
+  /** Borrowing-domain copy of the same person. */
+  toSlotId: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  personName: string;
+  ratio: number;
+  role?: string;
+  /** Borrowing domain's display label. */
+  toDomain: string;
+}
+
 export interface DomainTreeLayout {
   /** The top-level domain this diagram belongs to. */
   root: DomainNode;
   /** Flattened breadth-order node list for renderers that avoid DOM nesting. */
   nodes: DomainNode[];
   links: TreeLink[];
+  /** Same-tree loans, drawable as dashed arrows. Empty when none qualify. */
+  loanLinks: LoanLink[];
   width: number;
   height: number;
   options: LayoutOptions;
@@ -384,14 +410,87 @@ export function computeDomainTreeLayout(
   const rootBox = boxOf.get(root);
   if (!rootBox) throw new Error(`领域 "${domain.name}" 布局失败`);
 
+  const nodes = descendants
+    .map((node) => boxOf.get(node))
+    .filter((box): box is DomainNode => !!box);
+
   return {
     root: rootBox,
-    nodes: descendants.map((node) => boxOf.get(node)).filter((box): box is DomainNode => !!box),
+    nodes,
     links,
+    loanLinks: collectLoanLinks(config, nodes, buildLabelLookup(config)),
     width: maxX - minX + options.padding * 2,
     height: contentHeight,
     options,
   };
+}
+
+/** Midpoints of the two facing edges, so the arrow never crosses a card. */
+function anchorBetween(
+  from: { x: number; y: number; width: number; height: number },
+  to: { x: number; y: number; width: number; height: number },
+): { fromX: number; fromY: number; toX: number; toY: number } {
+  const dx = to.x + to.width / 2 - (from.x + from.width / 2);
+  const dy = to.y + to.height / 2 - (from.y + from.height / 2);
+
+  if (Math.abs(dy) > Math.abs(dx)) {
+    const down = dy > 0;
+    return {
+      fromX: from.x + from.width / 2,
+      fromY: down ? from.y + from.height : from.y,
+      toX: to.x + to.width / 2,
+      toY: down ? to.y : to.y + to.height,
+    };
+  }
+
+  const right = dx > 0;
+  return {
+    fromX: right ? from.x + from.width : from.x,
+    fromY: from.y + from.height / 2,
+    toX: right ? to.x : to.x + to.width,
+    toY: to.y + to.height / 2,
+  };
+}
+
+/**
+ * Loans where the person's home card and their borrowed-in card both landed in
+ * this tree. Anything pointing outside it is left to the corner badges.
+ */
+function collectLoanLinks(
+  config: Config,
+  nodes: DomainNode[],
+  labelOf: (name: string) => string,
+): LoanLink[] {
+  const placed = new Map<string, PersonSlot>();
+  for (const node of nodes) {
+    for (const slot of node.slots) {
+      if (slot.kind !== "gap") placed.set(slot.id, slot);
+    }
+  }
+
+  const loanLinks: LoanLink[] = [];
+  for (const person of config.people) {
+    if (!person.homeDomain) continue;
+    const from = placed.get(slotId(person.homeDomain, person.id));
+    if (!from) continue;
+
+    for (const loan of person.lendTo ?? []) {
+      const to = placed.get(slotId(loan.domain, person.id));
+      if (!to) continue;
+      loanLinks.push({
+        id: `loan:${person.id}:${person.homeDomain}->${loan.domain}`,
+        fromSlotId: from.id,
+        toSlotId: to.id,
+        ...anchorBetween(from, to),
+        personName: person.name,
+        ratio: loan.ratio,
+        role: loan.role,
+        toDomain: labelOf(loan.domain),
+      });
+    }
+  }
+
+  return loanLinks;
 }
 
 /** Top-level domains, one per tab / drawio page / exported PNG. */

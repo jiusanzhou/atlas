@@ -14,15 +14,76 @@ interface DomainCardProps {
 /**
  * A single node of the top-down domain tree. Coordinates come from
  * computeDomainTreeLayout so the web view and the drawio export share geometry.
- * The root node gets a heavier treatment since it heads the whole diagram.
  */
 export function DomainCard({ node, theme, children }: DomainCardProps) {
+  if (theme.variant === "minimal") {
+    return (
+      <MinimalDomainCard node={node} theme={theme}>
+        {children}
+      </MinimalDomainCard>
+    );
+  }
+  return (
+    <FramedDomainCard node={node} theme={theme}>
+      {children}
+    </FramedDomainCard>
+  );
+}
+
+/** No fill and no frame: just a labelled rule above the roster. */
+function MinimalDomainCard({ node, theme, children }: DomainCardProps) {
+  const label = node.domain.displayName ?? node.domain.name;
+  const isRoot = node.depth === 0;
+
+  return (
+    <div
+      data-domain-id={node.id}
+      className="absolute"
+      style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
+    >
+      <div
+        className="flex items-baseline gap-2 px-1"
+        style={{
+          height: node.headerHeight,
+          borderBottom: `1px solid ${node.color ?? theme.domainBorder}`,
+        }}
+      >
+        <span
+          className="truncate"
+          style={{
+            color: theme.textPrimary,
+            fontFamily: theme.headingFont,
+            fontSize: isRoot ? 15 : 13,
+            fontWeight: isRoot ? 700 : 600,
+          }}
+        >
+          {label}
+        </span>
+        {node.gapCount > 0 && (
+          <span
+            className="shrink-0 text-[10px] font-semibold"
+            style={{ color: theme.priority.critical }}
+            title={`该领域及子领域共缺 ${node.gapCount} 人`}
+          >
+            缺 {node.gapCount}
+          </span>
+        )}
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
+/** The root node gets a heavier treatment since it heads the whole diagram. */
+function FramedDomainCard({ node, theme, children }: DomainCardProps) {
   const label = node.domain.displayName ?? node.domain.name;
   const accent = node.color ?? theme.accent;
   const isRoot = node.depth === 0;
 
   return (
     <div
+      data-domain-id={node.id}
       className="absolute"
       style={{
         left: node.x,

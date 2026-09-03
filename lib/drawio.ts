@@ -105,6 +105,229 @@ function cardValue(slot: PersonSlot): string {
     .join("\n");
 }
 
+/**
+ * Minimal variant: circular avatar over one line of name, no frame or tags.
+ * The comment still lands on the frame cell so it survives as tooltip text.
+ */
+function minimalPersonCardCells(
+  writer: CellWriter,
+  slot: PersonSlot,
+  parent: string,
+  theme: ThemeTokens,
+  avatars: Record<string, string>,
+  /** True when a dashed edge on this page already shows the loan. */
+  loanDrawnAsEdge: boolean,
+): void {
+  const value = cardValue(slot);
+
+  const cardId = vertex(writer, {
+    value,
+    style: [
+      "rounded=1",
+      "arcSize=10",
+      "fillColor=none",
+      "strokeColor=none",
+      "html=1",
+      "whiteSpace=wrap",
+      "verticalAlign=top",
+      ...(value ? ["noLabel=1"] : []),
+    ].join(";"),
+    x: slot.x,
+    y: slot.y,
+    width: slot.width,
+    height: slot.height,
+    parent,
+  });
+
+  const avatarSize = theme.card.avatarSize;
+  const avatarX = (slot.width - avatarSize) / 2;
+  const image = avatars[slot.person.id] ?? resolveAvatarSync(slot.person, { size: avatarSize });
+
+  vertex(writer, {
+    value: "",
+    style: [
+      "shape=image",
+      "imageAspect=0",
+      "aspect=fixed",
+      "imageBorder=none",
+      `image=${image}`,
+      "clipPath=ellipse",
+    ].join(";"),
+    x: avatarX,
+    y: 8,
+    width: avatarSize,
+    height: avatarSize,
+    parent: cardId,
+  });
+
+  vertex(writer, {
+    value: "",
+    style: ["ellipse", "fillColor=none", `strokeColor=${theme.panelBorder}`, "strokeWidth=1", "html=1"].join(
+      ";",
+    ),
+    x: avatarX,
+    y: 8,
+    width: avatarSize,
+    height: avatarSize,
+    parent: cardId,
+  });
+
+  // Crown for the lead, gold dot for a comment: the same two quiet markers
+  // the web card uses.
+  if (slot.kind === "lead") {
+    vertex(writer, {
+      value: "♛",
+      style: [
+        "ellipse",
+        `fillColor=${theme.panelBackground}`,
+        `strokeColor=${theme.panelBorder}`,
+        `fontColor=${theme.leadMarker}`,
+        "fontSize=10",
+        "fontStyle=1",
+        "html=1",
+        "align=center",
+        "verticalAlign=middle",
+      ].join(";"),
+      x: slot.width / 2 - 8,
+      y: avatarSize,
+      width: 16,
+      height: 16,
+      parent: cardId,
+    });
+  }
+
+  if (slot.person.comment?.trim()) {
+    vertex(writer, {
+      value: "",
+      style: ["ellipse", `fillColor=${theme.commentMarker}`, "strokeColor=none", "html=1"].join(";"),
+      x: avatarX + avatarSize - 7,
+      y: 8,
+      width: 7,
+      height: 7,
+      parent: cardId,
+    });
+  }
+
+  vertex(writer, {
+    value: slot.person.name,
+    style: [
+      "text",
+      "html=1",
+      "align=center",
+      "verticalAlign=top",
+      `fontColor=${theme.textPrimary}`,
+      "fontSize=12",
+      slot.kind === "lead" ? "fontStyle=1" : "fontStyle=0",
+      `fontFamily=${escapeStyleValue(theme.headingFont.split(",")[0])}`,
+      "strokeColor=none",
+      "fillColor=none",
+      "whiteSpace=wrap",
+    ].join(";"),
+    x: 2,
+    y: avatarSize + 14,
+    width: slot.width - 4,
+    height: 32,
+    parent: cardId,
+  });
+
+  // Cross-page loans have no edge to carry them, so they degrade to a caption.
+  if (!loanDrawnAsEdge && slot.badges.length > 0) {
+    vertex(writer, {
+      value: slot.badges
+        .slice(0, 2)
+        .map(
+          (badge) =>
+            `${badge.direction === "out" ? "→ 借出到" : "← 来自"} ${badge.domain} ${Math.round(
+              badge.ratio * 100,
+            )}%`,
+        )
+        .join("<br/>"),
+      style: [
+        "text",
+        "html=1",
+        "align=center",
+        "verticalAlign=top",
+        `fontColor=${theme.textSecondary}`,
+        "fontSize=8",
+        "strokeColor=none",
+        "fillColor=none",
+        "whiteSpace=wrap",
+      ].join(";"),
+      x: 0,
+      y: slot.height - 22,
+      width: slot.width,
+      height: 20,
+      parent: cardId,
+    });
+  }
+
+  writer.slotCellIds.set(slot.id, cardId);
+}
+
+/** Minimal variant gap: dashed circle with a `+`, then the role line. */
+function minimalGapCardCells(
+  writer: CellWriter,
+  slot: Extract<Slot, { kind: "gap" }>,
+  parent: string,
+  theme: ThemeTokens,
+): void {
+  const cardId = vertex(writer, {
+    value: "",
+    style: ["rounded=1", "arcSize=10", "fillColor=none", "strokeColor=none", "html=1"].join(";"),
+    x: slot.x,
+    y: slot.y,
+    width: slot.width,
+    height: slot.height,
+    parent,
+  });
+
+  const avatarSize = theme.card.avatarSize;
+  const avatarX = (slot.width - avatarSize) / 2;
+
+  vertex(writer, {
+    value: "+",
+    style: [
+      "ellipse",
+      `fillColor=${theme.gapBackground}`,
+      `strokeColor=${theme.gapBorder}`,
+      "dashed=1",
+      "dashPattern=3 3",
+      `fontColor=${theme.gapText}`,
+      "fontSize=20",
+      "html=1",
+      "align=center",
+      "verticalAlign=middle",
+    ].join(";"),
+    x: avatarX,
+    y: 8,
+    width: avatarSize,
+    height: avatarSize,
+    parent: cardId,
+  });
+
+  vertex(writer, {
+    value: `招募中 · ${slot.gap.role} ×${slot.gap.count}`,
+    style: [
+      "text",
+      "html=1",
+      "align=center",
+      "verticalAlign=top",
+      `fontColor=${theme.gapText}`,
+      "fontSize=11",
+      "strokeColor=none",
+      "fillColor=none",
+      "whiteSpace=wrap",
+    ].join(";"),
+    x: 2,
+    y: avatarSize + 14,
+    width: slot.width - 4,
+    height: 34,
+    parent: cardId,
+  });
+
+  writer.slotCellIds.set(slot.id, cardId);
+}
+
 function personCardCells(
   writer: CellWriter,
   slot: PersonSlot,
@@ -437,24 +660,38 @@ function domainCells(
   node: DomainNode,
   theme: ThemeTokens,
   avatars: Record<string, string>,
+  /** Slot ids that a dashed loan edge on this page will connect. */
+  edgeLoanSlotIds: Set<string>,
 ): string {
+  const minimal = theme.variant === "minimal";
   const stroke = node.color ?? theme.accent;
   const isRoot = node.depth === 0;
 
   const groupId = vertex(writer, {
     value: "",
-    style: [
-      "rounded=1",
-      "arcSize=4",
-      `fillColor=${theme.cardBackgroundFlat}`,
-      "opacity=40",
-      `strokeColor=${stroke}`,
-      `strokeWidth=${isRoot ? 3 : 2}`,
-      "html=1",
-      "verticalAlign=top",
-      "container=1",
-      "collapsible=0",
-    ].join(";"),
+    style: minimal
+      ? // No fill or frame, matching the web view; the header rule carries it.
+        [
+          "rounded=0",
+          "fillColor=none",
+          "strokeColor=none",
+          "html=1",
+          "verticalAlign=top",
+          "container=1",
+          "collapsible=0",
+        ].join(";")
+      : [
+          "rounded=1",
+          "arcSize=4",
+          `fillColor=${theme.cardBackgroundFlat}`,
+          "opacity=40",
+          `strokeColor=${stroke}`,
+          `strokeWidth=${isRoot ? 3 : 2}`,
+          "html=1",
+          "verticalAlign=top",
+          "container=1",
+          "collapsible=0",
+        ].join(";"),
     x: node.x,
     y: node.y,
     width: node.width,
@@ -462,20 +699,35 @@ function domainCells(
     parent: "1",
   });
 
+  const gapSuffix = minimal && node.gapCount > 0 ? `  缺 ${node.gapCount}` : "";
+
   vertex(writer, {
-    value: domainLabel(node.domain),
-    style: [
-      "rounded=0",
-      `fillColor=${node.color ?? "#3a2a15"}`,
-      `strokeColor=${stroke}`,
-      `fontColor=${theme.textPrimary}`,
-      `fontSize=${isRoot ? 16 : 13}`,
-      "fontStyle=1",
-      "html=1",
-      "align=left",
-      "spacingLeft=12",
-      "verticalAlign=middle",
-    ].join(";"),
+    value: `${domainLabel(node.domain)}${gapSuffix}`,
+    style: minimal
+      ? [
+          "text",
+          "html=1",
+          "align=left",
+          "verticalAlign=bottom",
+          "spacingLeft=4",
+          `fontColor=${theme.textPrimary}`,
+          `fontSize=${isRoot ? 14 : 12}`,
+          "fontStyle=1",
+          "fillColor=none",
+          "strokeColor=none",
+        ].join(";")
+      : [
+          "rounded=0",
+          `fillColor=${node.color ?? "#3a2a15"}`,
+          `strokeColor=${stroke}`,
+          `fontColor=${theme.textPrimary}`,
+          `fontSize=${isRoot ? 16 : 13}`,
+          "fontStyle=1",
+          "html=1",
+          "align=left",
+          "spacingLeft=12",
+          "verticalAlign=middle",
+        ].join(";"),
     x: 0,
     y: 0,
     width: node.width,
@@ -483,7 +735,23 @@ function domainCells(
     parent: groupId,
   });
 
-  if (node.gapCount > 0) {
+  if (minimal) {
+    // Single rule under the header stands in for the whole box.
+    vertex(writer, {
+      value: "",
+      style: [
+        "line",
+        "html=1",
+        `strokeColor=${node.color ?? theme.domainBorder}`,
+        "strokeWidth=1",
+      ].join(";"),
+      x: 0,
+      y: node.headerHeight - 1,
+      width: node.width,
+      height: 1,
+      parent: groupId,
+    });
+  } else if (node.gapCount > 0) {
     vertex(writer, {
       value: String(node.gapCount),
       style: [
@@ -509,7 +777,17 @@ function domainCells(
   for (const slot of node.slots) {
     const relative = { ...slot, x: slot.x - node.x, y: slot.y - node.y } as Slot;
     if (relative.kind === "gap") {
-      gapCardCells(writer, relative, groupId, theme);
+      if (minimal) minimalGapCardCells(writer, relative, groupId, theme);
+      else gapCardCells(writer, relative, groupId, theme);
+    } else if (minimal) {
+      minimalPersonCardCells(
+        writer,
+        relative,
+        groupId,
+        theme,
+        avatars,
+        edgeLoanSlotIds.has(relative.id),
+      );
     } else {
       personCardCells(writer, relative, groupId, theme, avatars);
     }
@@ -528,8 +806,16 @@ function pageCells(
   const writer = createWriter(prefix);
   const nodeCellIds = new Map<string, string>();
 
+  const edgeLoanSlotIds = new Set<string>();
+  if (theme.showLoanArrows) {
+    for (const loan of layout.loanLinks) {
+      edgeLoanSlotIds.add(loan.fromSlotId);
+      edgeLoanSlotIds.add(loan.toSlotId);
+    }
+  }
+
   for (const node of layout.nodes) {
-    nodeCellIds.set(node.id, domainCells(writer, node, theme, avatars));
+    nodeCellIds.set(node.id, domainCells(writer, node, theme, avatars, edgeLoanSlotIds));
   }
 
   // Solid parent-to-child connectors; dashed styling stays reserved for loans.
@@ -558,6 +844,36 @@ function pageCells(
       target,
       parent: "1",
     });
+  }
+
+  // Same-page loans become dashed edges; cross-page ones already carry the
+  // "→ 借出到 XX" text annotation drawn on the card itself.
+  if (theme.showLoanArrows) {
+    for (const loan of layout.loanLinks) {
+      const source = writer.slotCellIds.get(loan.fromSlotId);
+      const target = writer.slotCellIds.get(loan.toSlotId);
+      if (!source || !target) continue;
+
+      edge(writer, {
+        value: `${loan.role ? `${loan.role} ` : ""}${Math.round(loan.ratio * 100)}%`,
+        style: [
+          "edgeStyle=orthogonalEdgeStyle",
+          "curved=1",
+          "dashed=1",
+          "dashPattern=5 4",
+          `strokeColor=${theme.loanArrow}`,
+          "strokeWidth=1",
+          "endArrow=blockThin",
+          "endFill=1",
+          `fontColor=${theme.textSecondary}`,
+          "fontSize=9",
+          "html=1",
+        ].join(";"),
+        source,
+        target,
+        parent: "1",
+      });
+    }
   }
 
   return writer.cells;

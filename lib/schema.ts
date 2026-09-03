@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const PRIORITIES = ["low", "medium", "high", "critical"] as const;
 export const RARITIES = ["common", "rare", "epic", "legendary"] as const;
-export const THEMES = ["hearthstone", "business", "blueprint"] as const;
+export const THEMES = ["hearthstone", "minimal", "business", "blueprint"] as const;
 
 export type Priority = (typeof PRIORITIES)[number];
 export type Rarity = (typeof RARITIES)[number];

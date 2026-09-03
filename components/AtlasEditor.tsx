@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
-import { Download, ImageDown, Loader2, Palette, Users } from "lucide-react";
+import { Download, ImageDown, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigInput } from "@/components/ConfigInput";
 import { DomainTree } from "@/components/DomainTree";
 import { Canvas } from "@/components/Canvas";
+import { ThemeSwitcher, storeTheme, useStoredTheme } from "@/components/ThemeSwitcher";
 import { ConfigError, parseConfig, type ConfigFormat } from "@/lib/parser";
 import { domainGaps, domainLabel, totalGaps } from "@/lib/layout";
-import { THEMES, type Config, type ThemeName } from "@/lib/schema";
+import type { Config, ThemeName } from "@/lib/schema";
 import { getTheme } from "@/lib/themes";
 
 interface AtlasEditorProps {
@@ -63,10 +64,15 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
   const deferredSource = useDeferredValue(source);
   const parsed = useMemo(() => parseSource(deferredSource), [deferredSource]);
 
+  // Precedence: this session's pick, then the last remembered one, then the
+  // theme declared in the config itself.
+  const storedTheme = useStoredTheme();
+  const activeThemeName = themeOverride ?? storedTheme ?? parsed.config?.theme ?? "hearthstone";
+
   const config = useMemo(() => {
     if (!parsed.config) return null;
-    return themeOverride ? { ...parsed.config, theme: themeOverride } : parsed.config;
-  }, [parsed.config, themeOverride]);
+    return { ...parsed.config, theme: activeThemeName };
+  }, [parsed.config, activeThemeName]);
 
   const stats = useMemo(
     () =>
@@ -90,11 +96,10 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
   const currentDomain =
     domains.find((domain) => domain.name === activeDomain)?.name ?? domains[0]?.name ?? null;
 
-  const cycleTheme = useCallback(() => {
-    const current = config?.theme ?? "hearthstone";
-    const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
-    setThemeOverride(next);
-  }, [config?.theme]);
+  const selectTheme = useCallback((name: ThemeName) => {
+    setThemeOverride(name);
+    storeTheme(name);
+  }, []);
 
   const exportFile = useCallback(
     async (kind: "drawio" | "png") => {
@@ -153,15 +158,7 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
             </div>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={cycleTheme}
-            className="h-8 border-zinc-700 bg-zinc-900 text-xs hover:bg-zinc-800"
-          >
-            <Palette size={14} />
-            {activeTheme.label}
-          </Button>
+          <ThemeSwitcher value={activeThemeName} onChange={selectTheme} />
 
           <Button
             variant="outline"
@@ -252,6 +249,7 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
                     initialFit
                     fitKey={`${domain.name}::${activeTheme.name}`}
                     background={activeTheme.canvasBackground}
+                    gridColor={activeTheme.gridColor}
                     gridBackground="dots"
                   >
                     <DomainTree config={config} domain={domain} transparent />

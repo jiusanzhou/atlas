@@ -13,14 +13,39 @@ export interface RarityStyle {
   label: string;
 }
 
+/**
+ * Which render branch the card components take. `card` is the framed
+ * Hearthstone-style face; `minimal` is avatar + name with a hover panel.
+ */
+export type ThemeVariant = "card" | "minimal";
+
+/**
+ * Geometry a theme may override on top of DEFAULT_LAYOUT. Declared here rather
+ * than reusing LayoutOptions so themes stay importable from the layout module.
+ */
+export interface ThemeGeometry {
+  cardGap: number;
+  columns: number;
+  padding: number;
+  headerHeight: number;
+  minNodeWidth: number;
+  nodeGapX: number;
+  levelGapY: number;
+}
+
 export interface ThemeTokens {
   name: ThemeName;
   label: string;
+  variant: ThemeVariant;
   card: CardMetrics;
+  /** Layout overrides merged over DEFAULT_LAYOUT by layoutFromTheme. */
+  geometry: Partial<ThemeGeometry>;
   /** CSS gradient for the card face. */
   cardBackground: string;
   /** Flat colour used by drawio, which cannot express gradients per-cell. */
   cardBackgroundFlat: string;
+  /** Highlight painted behind a card on hover. Carries the minimal variant. */
+  cardHoverBackground: string;
   accent: string;
   accentSoft: string;
   textPrimary: string;
@@ -29,6 +54,8 @@ export interface ThemeTokens {
   domainBorder: string;
   domainBanner: string;
   canvasBackground: string;
+  /** Colour of the canvas grid dots/lines, so light themes stay visible. */
+  gridColor: string;
   tagBackground: string;
   tagText: string;
   gapBorder: string;
@@ -41,6 +68,19 @@ export interface ThemeTokens {
   loanOutBackground: string;
   /** Blue-ish: this person is borrowed in from another top-level domain. */
   loanInBackground: string;
+  /**
+   * Draw dashed loan arrows for loans whose both ends live in the current tree.
+   * Cross-tree loans stay badge/annotation only regardless of this flag.
+   */
+  showLoanArrows: boolean;
+  /** Marks the domain lead (crown). */
+  leadMarker: string;
+  /** Marks a person carrying a markdown comment. */
+  commentMarker: string;
+  /** Surface of the minimal variant's hover panel. */
+  panelBackground: string;
+  panelBorder: string;
+  panelShadow: string;
   /** Parent-to-child connector in the domain tree. Solid, not dashed. */
   treeLink: string;
   rarity: Record<Rarity, RarityStyle>;

@@ -3,12 +3,11 @@
 import { useState, type KeyboardEvent } from "react";
 import { motion } from "framer-motion";
 import { Crown, MessageCircle } from "lucide-react";
-import Markdown, { type ExtraProps } from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { resolveAvatarSync } from "@/lib/avatar";
 import type { PersonSlot } from "@/lib/layout";
 import type { ThemeTokens } from "@/lib/themes/types";
 import { LoanBadge } from "./LoanBadge";
+import { CommentMarkdown, markdownVars } from "./markdown";
 import { NO_ZOOM_ATTR } from "./Canvas";
 
 interface PersonCardProps {
@@ -19,21 +18,9 @@ interface PersonCardProps {
 }
 
 /**
- * Links come from user config, so never keep the opener's window reference.
- * `node` is react-markdown's AST handle and must not reach the DOM.
+ * The framed, flippable card face. Themes with `variant: "minimal"` render
+ * MinimalCard + PersonHoverPanel instead; DomainTree does that dispatch.
  */
-const MARKDOWN_COMPONENTS = {
-  a: (props: React.ComponentPropsWithoutRef<"a"> & ExtraProps) => {
-    const { children, ...rest } = props;
-    delete rest.node;
-    return (
-      <a {...rest} target="_blank" rel="noopener noreferrer">
-        {children}
-      </a>
-    );
-  },
-};
-
 export function PersonCard({ slot, theme, still = false }: PersonCardProps) {
   const { person, kind, rarity } = slot;
   const [flipped, setFlipped] = useState(false);
@@ -221,7 +208,7 @@ export function PersonCard({ slot, theme, still = false }: PersonCardProps) {
           </div>
         </div>
 
-        {hasComment && (
+        {comment && (
           <div
             data-card-back
             className="absolute inset-0 flex flex-col px-3 pb-2 pt-2.5"
@@ -248,18 +235,9 @@ export function PersonCard({ slot, theme, still = false }: PersonCardProps) {
             <div
               {...{ [NO_ZOOM_ATTR]: true }}
               className="markdown-body atlas-scroll mt-2 max-h-[220px] flex-1 overflow-y-auto pr-1"
-              style={
-                {
-                  "--md-text": theme.textPrimary,
-                  "--md-accent": theme.accent,
-                  "--md-soft": theme.accentSoft,
-                  "--md-code-bg": theme.tagBackground,
-                } as React.CSSProperties
-              }
+              style={markdownVars(theme)}
             >
-              <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-                {comment}
-              </Markdown>
+              <CommentMarkdown source={comment} />
             </div>
 
             <div
