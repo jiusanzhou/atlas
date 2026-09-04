@@ -60,6 +60,11 @@ export interface ThemeTokens {
   tagText: string;
   gapBorder: string;
   gapBackground: string;
+  /** Opaque variant of gapBackground: needed behind the flipped card's back
+   *  face, and by drawio, which cannot express gradients or alpha per cell. */
+  gapBackgroundFlat: string;
+  /** Fill inside the silhouette ring on a gap card. */
+  gapSilhouetteBackground: string;
   gapText: string;
   loanBadgeBackground: string;
   loanBadgeText: string;

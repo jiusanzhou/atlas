@@ -5,14 +5,23 @@ export const RARITIES = ["common", "rare", "epic", "legendary"] as const;
 export const THEMES = ["hearthstone", "minimal", "business", "blueprint"] as const;
 
 export type Priority = (typeof PRIORITIES)[number];
+
+export const PRIORITY_LABEL: Record<Priority, string> = {
+  low: "低",
+  medium: "中",
+  high: "高",
+  critical: "紧急",
+};
 export type Rarity = (typeof RARITIES)[number];
 export type ThemeName = (typeof THEMES)[number];
 
 export const GapSchema = z.object({
   role: z.string().min(1),
-  count: z.number().int().positive(),
+  count: z.number().int().positive().default(1),
   priority: z.enum(PRIORITIES),
   note: z.string().optional(),
+  /** Markdown source: hiring requirements, shown on the flipped card / panel. */
+  comment: z.string().optional(),
 });
 
 export const LoanSchema = z.object({
@@ -34,16 +43,23 @@ export const PersonSchema = z.object({
   comment: z.string().optional(),
 });
 
-export const DomainSchema: z.ZodType<DomainInput> = z.object({
-  name: z.string().min(1),
-  displayName: z.string().optional(),
-  lead: z.string().optional(),
-  members: z.array(z.string()).optional(),
-  gaps: z.array(GapSchema).optional(),
-  subdomains: z.lazy(() => z.array(DomainSchema)).optional(),
-  color: z.string().optional(),
-  description: z.string().optional(),
-});
+export const DomainSchema: z.ZodType<DomainInput> = z
+  .object({
+    name: z.string().min(1),
+    displayName: z.string().optional(),
+    lead: z.string().optional(),
+    /** An unfilled lead seat. Mutually exclusive with `lead`. */
+    leadGap: GapSchema.optional(),
+    members: z.array(z.string()).optional(),
+    gaps: z.array(GapSchema).optional(),
+    subdomains: z.lazy(() => z.array(DomainSchema)).optional(),
+    color: z.string().optional(),
+    description: z.string().optional(),
+  })
+  .refine((domain) => !(domain.lead && domain.leadGap), {
+    error: "lead 与 leadGap 只能填一个",
+    path: ["leadGap"],
+  });
 
 export const MetaSchema = z.object({
   title: z.string().optional(),
@@ -68,6 +84,7 @@ export interface DomainInput {
   name: string;
   displayName?: string;
   lead?: string;
+  leadGap?: Gap;
   members?: string[];
   gaps?: Gap[];
   subdomains?: DomainInput[];

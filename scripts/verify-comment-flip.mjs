@@ -52,7 +52,10 @@ const badgeInfo = await page.evaluate(() => {
     totalCards: cards.length,
     badgeCount: withBadge.length,
     names: [...new Set(names)],
-    clickable: cards.filter((c) => c.getAttribute("role") === "button").length,
+    // v1.5: gap cards flip too, so restrict this to person cards.
+    clickable: cards.filter(
+      (c) => c.getAttribute("role") === "button" && !c.hasAttribute("data-gap-role"),
+    ).length,
     badgeBox: rect && cardRect
       ? {
           w: Math.round(rect.width / scale),
@@ -100,12 +103,12 @@ check("卡片仍是 240×340", size.w === 240 && size.h === 340, `${size.w}×${s
 // --- 3. 翻卡 ----------------------------------------------------------------
 await page.screenshot({ path: `${OUT}-front.png` });
 
-const targetSel = '[data-slot-id][role="button"]';
+const targetSel = '[data-slot-id][role="button"]:not([data-gap-role])';
 await page.click(targetSel);
 await new Promise((r) => setTimeout(r, 700));
 
 const flipState = await page.evaluate(() => {
-  const card = document.querySelector('[data-slot-id][role="button"]');
+  const card = document.querySelector('[data-slot-id][role="button"]:not([data-gap-role])');
   const flipper = card.querySelector("[style*='preserve-3d']");
   const matrix = new DOMMatrix(getComputedStyle(flipper).transform);
   const back = card.querySelector("[data-card-back]");
@@ -161,7 +164,7 @@ await page.screenshot({ path: `${OUT}-back.png` });
 
 // 背面单卡特写
 const clip = await page.evaluate(() => {
-  const r = document.querySelector('[data-slot-id][role="button"]').getBoundingClientRect();
+  const r = document.querySelector('[data-slot-id][role="button"]:not([data-gap-role])').getBoundingClientRect();
   return { x: r.x - 6, y: r.y - 6, width: r.width + 12, height: r.height + 12 };
 });
 await page.screenshot({ path: `${OUT}-back-closeup.png`, clip });
@@ -170,7 +173,7 @@ await page.screenshot({ path: `${OUT}-back-closeup.png`, clip });
 await page.click(targetSel);
 await new Promise((r) => setTimeout(r, 700));
 const unflipped = await page.evaluate(() => {
-  const card = document.querySelector('[data-slot-id][role="button"]');
+  const card = document.querySelector('[data-slot-id][role="button"]:not([data-gap-role])');
   const flipper = card.querySelector("[style*='preserve-3d']");
   return {
     m11: Number(new DOMMatrix(getComputedStyle(flipper).transform).m11.toFixed(3)),

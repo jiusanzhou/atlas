@@ -3,6 +3,7 @@
 import { ArrowLeft, ArrowRight, Crown, Pin, UserPlus } from "lucide-react";
 import { resolveAvatarSync } from "@/lib/avatar";
 import type { GapSlot, PersonSlot, Slot } from "@/lib/layout";
+import { PRIORITY_LABEL } from "@/lib/schema";
 import type { ThemeTokens } from "@/lib/themes/types";
 import { CommentMarkdown, markdownVars } from "./markdown";
 import { NO_ZOOM_ATTR } from "./Canvas";
@@ -12,13 +13,6 @@ export const PANEL_GAP = 10;
 const PANEL_AVATAR = 80;
 
 export type PanelSide = "right" | "left" | "bottom";
-
-const PRIORITY_LABEL: Record<string, string> = {
-  low: "低",
-  medium: "中",
-  high: "高",
-  critical: "紧急",
-};
 
 /**
  * Where the panel fits next to a card that is currently on screen at `scale`.
@@ -70,6 +64,7 @@ export function PersonHoverPanel({
       data-panel-pinned={pinned ? "true" : undefined}
       role="dialog"
       aria-label={slot.kind === "gap" ? `${slot.gap.role} 缺口详情` : `${slot.person.name} 详情`}
+      {...(slot.kind === "gap" ? { "data-gap-role": slot.role } : {})}
       className="absolute cursor-default overflow-hidden rounded-xl"
       style={{
         left: position.left,
@@ -108,7 +103,7 @@ function PersonPanelBody({ slot, theme }: { slot: PersonSlot; theme: ThemeTokens
   const comment = person.comment?.trim();
   const tags = person.tags ?? [];
   const avatar = resolveAvatarSync(person, { size: PANEL_AVATAR * 2 });
-  const isLead = slot.kind === "lead";
+  const isLead = slot.role === "lead";
 
   return (
     <div className="flex flex-col p-3.5">
@@ -225,24 +220,43 @@ function PersonPanelBody({ slot, theme }: { slot: PersonSlot; theme: ThemeTokens
 function GapPanelBody({ slot, theme }: { slot: GapSlot; theme: ThemeTokens }) {
   const { gap } = slot;
   const color = theme.priority[gap.priority];
+  const isLead = slot.role === "lead";
+  const comment = gap.comment?.trim();
 
   return (
     <div className="flex flex-col p-3.5">
       <div className="flex items-center gap-2.5">
         <div
-          className="flex shrink-0 items-center justify-center rounded-full"
+          className="relative flex shrink-0 items-center justify-center rounded-full"
           style={{
             width: 44,
             height: 44,
             background: theme.gapBackground,
-            border: `1px dashed ${theme.gapBorder}`,
+            border: `1px dashed ${isLead ? theme.leadMarker : theme.gapBorder}`,
           }}
         >
           <UserPlus size={20} strokeWidth={1.75} style={{ color: theme.gapText }} />
+          {isLead && (
+            <span
+              data-lead-gap-crown
+              className="absolute -bottom-1 left-1/2 flex h-4 w-4 -translate-x-1/2 items-center justify-center rounded-full"
+              style={{
+                background: theme.panelBackground,
+                boxShadow: `0 0 0 1px ${theme.leadMarker}`,
+              }}
+            >
+              <Crown
+                size={10}
+                strokeWidth={2.5}
+                strokeDasharray="3 2"
+                style={{ color: theme.leadMarker }}
+              />
+            </span>
+          )}
         </div>
         <div className="min-w-0">
           <div className="text-[10px] font-semibold tracking-widest" style={{ color: theme.gapText }}>
-            招募中
+            {isLead ? "负责人空缺 · 招募中" : "招募中"}
           </div>
           <div
             className="text-sm font-bold leading-tight"
@@ -275,6 +289,16 @@ function GapPanelBody({ slot, theme }: { slot: GapSlot; theme: ThemeTokens }) {
           style={{ color: theme.textSecondary, borderColor: theme.panelBorder }}
         >
           {gap.note}
+        </div>
+      )}
+
+      {comment && (
+        <div
+          {...{ [NO_ZOOM_ATTR]: true }}
+          className="markdown-body atlas-scroll mt-3 max-h-[220px] overflow-y-auto border-t pr-1 pt-2"
+          style={{ ...markdownVars(theme), borderColor: theme.panelBorder }}
+        >
+          <CommentMarkdown source={comment} />
         </div>
       )}
     </div>

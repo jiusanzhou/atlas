@@ -22,10 +22,10 @@ interface PersonCardProps {
  * MinimalCard + PersonHoverPanel instead; DomainTree does that dispatch.
  */
 export function PersonCard({ slot, theme, still = false }: PersonCardProps) {
-  const { person, kind, rarity } = slot;
+  const { person, role, rarity } = slot;
   const [flipped, setFlipped] = useState(false);
   const rarityStyle = theme.rarity[rarity];
-  const isLead = kind === "lead";
+  const isLead = role === "lead";
   const avatar = resolveAvatarSync(person, { size: theme.card.avatarSize });
   const tags = (person.tags ?? []).slice(0, 3);
   const comment = person.comment?.trim();

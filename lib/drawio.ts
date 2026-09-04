@@ -1,10 +1,11 @@
-import type { Config } from "./schema";
+import { PRIORITY_LABEL, type Config } from "./schema";
 import {
   computeDomainTreeLayout,
   domainLabel,
   layoutFromTheme,
   type DomainNode,
   type DomainTreeLayout,
+  type GapSlot,
   type PersonSlot,
   type Slot,
 } from "./layout";
@@ -105,6 +106,23 @@ function cardValue(slot: PersonSlot): string {
     .join("\n");
 }
 
+/** Same idea for a vacancy: the whole gap record, newline separated. */
+function gapValue(slot: GapSlot): string {
+  const { gap } = slot;
+  const head = slot.role === "lead" ? `负责人空缺：${gap.role}` : `招募中：${gap.role}`;
+  const comment = gap.comment?.trim();
+
+  return [
+    head,
+    `缺口 ×${gap.count}`,
+    `优先级：${PRIORITY_LABEL[gap.priority]}`,
+    gap.note ?? "",
+    ...(comment ? ["---", comment] : []),
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
 /**
  * Minimal variant: circular avatar over one line of name, no frame or tags.
  * The comment still lands on the frame cell so it survives as tooltip text.
@@ -174,7 +192,7 @@ function minimalPersonCardCells(
 
   // Crown for the lead, gold dot for a comment: the same two quiet markers
   // the web card uses.
-  if (slot.kind === "lead") {
+  if (slot.role === "lead") {
     vertex(writer, {
       value: "♛",
       style: [
@@ -217,7 +235,7 @@ function minimalPersonCardCells(
       "verticalAlign=top",
       `fontColor=${theme.textPrimary}`,
       "fontSize=12",
-      slot.kind === "lead" ? "fontStyle=1" : "fontStyle=0",
+      slot.role === "lead" ? "fontStyle=1" : "fontStyle=0",
       `fontFamily=${escapeStyleValue(theme.headingFont.split(",")[0])}`,
       "strokeColor=none",
       "fillColor=none",
@@ -264,16 +282,27 @@ function minimalPersonCardCells(
   writer.slotCellIds.set(slot.id, cardId);
 }
 
-/** Minimal variant gap: dashed circle with a `+`, then the role line. */
+/** Minimal variant gap: dashed silhouette circle, then the role line. */
 function minimalGapCardCells(
   writer: CellWriter,
-  slot: Extract<Slot, { kind: "gap" }>,
+  slot: GapSlot,
   parent: string,
   theme: ThemeTokens,
 ): void {
+  const isLead = slot.role === "lead";
+  const ring = isLead ? theme.leadMarker : theme.gapBorder;
+  const value = gapValue(slot);
+
   const cardId = vertex(writer, {
-    value: "",
-    style: ["rounded=1", "arcSize=10", "fillColor=none", "strokeColor=none", "html=1"].join(";"),
+    value,
+    style: [
+      "rounded=1",
+      "arcSize=10",
+      "fillColor=none",
+      "strokeColor=none",
+      "html=1",
+      "noLabel=1",
+    ].join(";"),
     x: slot.x,
     y: slot.y,
     width: slot.width,
@@ -285,15 +314,15 @@ function minimalGapCardCells(
   const avatarX = (slot.width - avatarSize) / 2;
 
   vertex(writer, {
-    value: "+",
+    value: "&#128100;",
     style: [
       "ellipse",
-      `fillColor=${theme.gapBackground}`,
-      `strokeColor=${theme.gapBorder}`,
+      `fillColor=${theme.gapBackgroundFlat}`,
+      `strokeColor=${ring}`,
       "dashed=1",
       "dashPattern=3 3",
       `fontColor=${theme.gapText}`,
-      "fontSize=20",
+      `fontSize=${Math.round(avatarSize * 0.42)}`,
       "html=1",
       "align=center",
       "verticalAlign=middle",
@@ -305,8 +334,50 @@ function minimalGapCardCells(
     parent: cardId,
   });
 
+  // Priority pip, and a dashed crown when the vacant seat is the lead's.
   vertex(writer, {
-    value: `招募中 · ${slot.gap.role} ×${slot.gap.count}`,
+    value: "",
+    style: [
+      "ellipse",
+      `fillColor=${theme.priority[slot.gap.priority]}`,
+      "strokeColor=none",
+      "html=1",
+    ].join(";"),
+    x: avatarX + avatarSize - 8,
+    y: 8,
+    width: 8,
+    height: 8,
+    parent: cardId,
+  });
+
+  if (isLead) {
+    vertex(writer, {
+      value: "♛",
+      style: [
+        "ellipse",
+        `fillColor=${theme.panelBackground}`,
+        `strokeColor=${theme.leadMarker}`,
+        "dashed=1",
+        "dashPattern=3 2",
+        `fontColor=${theme.leadMarker}`,
+        "fontSize=9",
+        "fontStyle=1",
+        "html=1",
+        "align=center",
+        "verticalAlign=middle",
+      ].join(";"),
+      x: slot.width / 2 - 8,
+      y: 8 + avatarSize - 8,
+      width: 16,
+      height: 16,
+      parent: cardId,
+    });
+  }
+
+  vertex(writer, {
+    value: isLead
+      ? `负责人空缺 · ${slot.gap.role}`
+      : `招募中 · ${slot.gap.role} ×${slot.gap.count}`,
     style: [
       "text",
       "html=1",
@@ -336,7 +407,7 @@ function personCardCells(
   avatars: Record<string, string>,
 ): void {
   const rarity = theme.rarity[slot.rarity];
-  const strokeWidth = slot.kind === "lead" ? 4 : 2;
+  const strokeWidth = slot.role === "lead" ? 4 : 2;
   const value = cardValue(slot);
 
   // Card frame is the group parent, so children use coordinates relative to it.
@@ -348,7 +419,7 @@ function personCardCells(
       `fillColor=${theme.cardBackgroundFlat}`,
       `strokeColor=${rarity.border}`,
       `strokeWidth=${strokeWidth}`,
-      slot.kind === "lead" ? "shadow=1" : "shadow=0",
+      slot.role === "lead" ? "shadow=1" : "shadow=0",
       "html=1",
       "whiteSpace=wrap",
       "verticalAlign=top",
@@ -446,7 +517,7 @@ function personCardCells(
     });
   }
 
-  if (slot.kind === "lead") {
+  if (slot.role === "lead") {
     vertex(writer, {
       value: "负责人",
       style: [
@@ -524,24 +595,36 @@ function personCardCells(
   writer.slotCellIds.set(slot.id, cardId);
 }
 
+/**
+ * Card variant of a vacancy: dashed frame around a dashed avatar-sized ring, so
+ * it occupies the same footprint as a person card. Gold dashes plus a crown mark
+ * an empty lead seat; grey dashes an empty member seat.
+ */
 function gapCardCells(
   writer: CellWriter,
-  slot: Extract<Slot, { kind: "gap" }>,
+  slot: GapSlot,
   parent: string,
   theme: ThemeTokens,
 ): void {
+  const { gap } = slot;
+  const isLead = slot.role === "lead";
+  const frame = isLead ? theme.accent : theme.gapBorder;
+  const priorityColor = theme.priority[gap.priority];
+  const value = gapValue(slot);
+
   const cardId = vertex(writer, {
-    value: "",
+    value,
     style: [
       "rounded=1",
-      "arcSize=8",
-      `fillColor=${theme.cardBackgroundFlat}`,
-      `strokeColor=${theme.gapBorder}`,
+      `arcSize=${Math.round((theme.card.borderRadius / theme.card.width) * 100)}`,
+      `fillColor=${theme.gapBackgroundFlat}`,
+      `strokeColor=${frame}`,
       "strokeWidth=2",
       "dashed=1",
       "dashPattern=8 6",
       "html=1",
       "verticalAlign=top",
+      "noLabel=1",
     ].join(";"),
     x: slot.x,
     y: slot.y,
@@ -549,6 +632,56 @@ function gapCardCells(
     height: slot.height,
     parent,
   });
+
+  const avatarSize = theme.card.avatarSize;
+  const avatarX = (slot.width - avatarSize) / 2;
+
+  // Dashed silhouette ring where a person card would show its avatar.
+  vertex(writer, {
+    value: "&#128100;",
+    style: [
+      "ellipse",
+      "fillColor=none",
+      `strokeColor=${frame}`,
+      "strokeWidth=2",
+      "dashed=1",
+      "dashPattern=4 4",
+      `fontColor=${theme.gapText}`,
+      `fontSize=${Math.round(avatarSize * 0.42)}`,
+      "html=1",
+      "align=center",
+      "verticalAlign=middle",
+    ].join(";"),
+    x: avatarX,
+    y: 18,
+    width: avatarSize,
+    height: avatarSize,
+    parent: cardId,
+  });
+
+  if (isLead) {
+    vertex(writer, {
+      value: "♛",
+      style: [
+        "ellipse",
+        `fillColor=${theme.gapBackgroundFlat}`,
+        `strokeColor=${theme.accent}`,
+        "dashed=1",
+        "dashPattern=3 2",
+        `fontColor=${theme.accent}`,
+        "fontSize=11",
+        "fontStyle=1",
+        "html=1",
+        "align=center",
+        "verticalAlign=middle",
+      ].join(";"),
+      x: slot.width / 2 - 10,
+      y: 18 + avatarSize - 10,
+      width: 20,
+      height: 20,
+      parent: cardId,
+    });
+  }
 
   vertex(writer, {
     value: "招募中",
@@ -558,20 +691,20 @@ function gapCardCells(
       "align=center",
       "verticalAlign=middle",
       `fontColor=${theme.gapText}`,
-      "fontSize=16",
+      "fontSize=12",
       "fontStyle=1",
       "strokeColor=none",
       "fillColor=none",
     ].join(";"),
     x: 8,
-    y: slot.height / 2 - 46,
+    y: avatarSize + 26,
     width: slot.width - 16,
-    height: 24,
+    height: 20,
     parent: cardId,
   });
 
   vertex(writer, {
-    value: `${slot.gap.role} ×${slot.gap.count}`,
+    value: isLead ? `负责人 · ${gap.role}` : gap.role,
     style: [
       "text",
       "html=1",
@@ -580,24 +713,22 @@ function gapCardCells(
       `fontColor=${theme.textPrimary}`,
       "fontSize=14",
       "fontStyle=1",
+      `fontFamily=${escapeStyleValue(theme.headingFont.split(",")[0])}`,
       "strokeColor=none",
       "fillColor=none",
+      "whiteSpace=wrap",
     ].join(";"),
     x: 8,
-    y: slot.height / 2 - 12,
+    y: avatarSize + 46,
     width: slot.width - 16,
     height: 24,
     parent: cardId,
   });
 
+  // Priority pip, top right, matching the web card.
   vertex(writer, {
     value: "",
-    style: [
-      "ellipse",
-      `fillColor=${theme.priority[slot.gap.priority]}`,
-      "strokeColor=none",
-      "html=1",
-    ].join(";"),
+    style: ["ellipse", `fillColor=${priorityColor}`, "strokeColor=none", "html=1"].join(";"),
     x: slot.width - 26,
     y: 12,
     width: 14,
@@ -605,9 +736,9 @@ function gapCardCells(
     parent: cardId,
   });
 
-  if (slot.gap.note) {
+  if (gap.note) {
     vertex(writer, {
-      value: slot.gap.note,
+      value: gap.note,
       style: [
         "text",
         "html=1",
@@ -620,32 +751,67 @@ function gapCardCells(
         "whiteSpace=wrap",
       ].join(";"),
       x: 10,
-      y: slot.height / 2 + 18,
+      y: avatarSize + 72,
       width: slot.width - 20,
       height: 40,
       parent: cardId,
     });
   }
 
+  if (gap.count > 1) {
+    vertex(writer, {
+      value: `×${gap.count}`,
+      style: [
+        "rounded=1",
+        "arcSize=30",
+        "fillColor=none",
+        `strokeColor=${priorityColor}`,
+        `fontColor=${priorityColor}`,
+        "fontSize=11",
+        "fontStyle=1",
+        "html=1",
+        "align=center",
+        "verticalAlign=middle",
+      ].join(";"),
+      x: 10,
+      y: slot.height - 30,
+      width: 38,
+      height: 20,
+      parent: cardId,
+    });
+  }
+
   vertex(writer, {
-    value: slot.gap.priority.toUpperCase(),
+    value: `${PRIORITY_LABEL[gap.priority]}优先级`,
     style: [
       "text",
       "html=1",
       "align=center",
       "verticalAlign=middle",
-      `fontColor=${theme.priority[slot.gap.priority]}`,
+      `fontColor=${priorityColor}`,
       "fontSize=10",
       "fontStyle=1",
       "strokeColor=none",
       "fillColor=none",
     ].join(";"),
     x: 8,
-    y: slot.height - 32,
+    y: slot.height - 30,
     width: slot.width - 16,
-    height: 18,
+    height: 20,
     parent: cardId,
   });
+
+  if (gap.comment?.trim()) {
+    vertex(writer, {
+      value: "",
+      style: ["ellipse", `fillColor=${frame}`, "strokeColor=none", "html=1"].join(";"),
+      x: slot.width - 22,
+      y: slot.height - 22,
+      width: 12,
+      height: 12,
+      parent: cardId,
+    });
+  }
 
   writer.slotCellIds.set(slot.id, cardId);
 }

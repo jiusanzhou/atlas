@@ -23,6 +23,8 @@ export const blueprint: ThemeTokens = {
   tagText: "#67e8f9",
   gapBorder: "#64748b",
   gapBackground: "rgba(8, 30, 56, 0.6)",
+  gapBackgroundFlat: "#0a2340",
+  gapSilhouetteBackground: "rgba(3, 22, 41, 0.55)",
   gapText: "#94a3b8",
   loanBadgeBackground: "#0e7490",
   loanBadgeText: "#ecfeff",

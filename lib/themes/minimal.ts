@@ -44,6 +44,8 @@ export const minimal: ThemeTokens = {
   tagText: "#525252",
   gapBorder: "#d4d4d4",
   gapBackground: "#f5f5f5",
+  gapBackgroundFlat: "#f5f5f5",
+  gapSilhouetteBackground: "#f5f5f5",
   gapText: "#a3a3a3",
   loanBadgeBackground: "#e5e5e5",
   loanBadgeText: "#404040",
@@ -67,8 +69,9 @@ export const minimal: ThemeTokens = {
     epic: { border: "#c4b5fd", glow: "rgba(167, 139, 250, 0.22)", label: "史诗" },
     legendary: { border: "#fcd34d", glow: "rgba(234, 179, 8, 0.28)", label: "传说" },
   },
+  // Slightly deeper than hearthstone's so the dots hold up on a white canvas.
   priority: {
-    low: "#65a30d",
+    low: "#9ca3af",
     medium: "#d97706",
     high: "#ea580c",
     critical: "#dc2626",

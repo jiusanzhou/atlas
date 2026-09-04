@@ -1,7 +1,7 @@
 meta:
   title: 技术中台组织架构
   description: 基础设施、应用平台与数据三大方向的领域负责人、核心成员与人力缺口
-  version: "1.1.0"
+  version: "1.5.0"
 
 theme: hearthstone
 
@@ -21,6 +21,17 @@ domains:
             count: 2
             priority: high
             note: 支撑多活容灾演练
+            comment: |
+              **岗位要求**
+
+              - 3+ 年大规模集群 SRE 经验
+              - 熟悉 Kubernetes / Prometheus / 混沌工程
+              - 有多活容灾演练的实操经历
+
+              **加分项**
+
+              - 写过 operator 或调度器扩展
+              - `eBPF` 可观测性背景
       - name: storage
         displayName: 存储
         lead: antirez
@@ -34,6 +45,16 @@ domains:
                 count: 1
                 priority: critical
                 note: 自研纠删码引擎缺主力
+                comment: |
+                  **必须具备**
+
+                  | 方向 | 要求 |
+                  | --- | --- |
+                  | 纠删码 | Reed-Solomon 工程落地经验 |
+                  | 一致性 | Raft / Paxos 实现级理解 |
+                  | 语言 | Rust 或 C++ 熟练 |
+
+                  ~~可接受纯理论背景~~ —— 需要能直接下场写引擎。
           - name: blockstore
             displayName: 块存储
             lead: kelseyhightower
@@ -58,11 +79,34 @@ domains:
         description: 组件体系与渲染性能
       - name: mobile
         displayName: 移动端
-        lead: jeresig
+        # 负责人空缺：leadGap 与 lead 互斥，这里等招
+        leadGap:
+          role: 移动端负责人
+          priority: critical
+          note: 缺 5+ 年 iOS 深度经验
+          comment: |
+            **岗位要求**
+
+            - 5+ 年 iOS/Android 一线开发
+            - 有过 1000w+ DAU App 架构经验
+            - 熟悉热更新 / 灰度发布 / 崩溃治理
+
+            **加分项**
+
+            - Flutter / RN 跨端背景
+            - 团队管理经验（10+ 人）
+
+            > 目前由 dhh 代管，最迟 Q3 需到位。
+        members: [jeresig]
         gaps:
           - role: iOS 工程师
             count: 2
             priority: high
+            note: 支撑短视频侧渲染
+            comment: |
+              - Metal / OpenGL 渲染背景
+              - AV Foundation 熟练
+              - 了解 `VideoToolbox` 硬编解码链路
       - name: devex
         displayName: 研发效能
         lead: matz
@@ -186,7 +230,7 @@ people:
 
   - id: jeresig
     name: John Resig
-    title: 移动端负责人
+    title: 移动端资深工程师
     homeDomain: mobile
     avatar: github:jeresig
     tags: [JavaScript, 测试]

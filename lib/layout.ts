@@ -53,8 +53,13 @@ export interface LoanBadgeInfo {
   role?: string;
 }
 
+/** Which seat a card occupies. Shared by people and gaps so the lead treatment
+ *  (crown, heavier frame) is one branch rather than two. */
+export type SlotRole = "lead" | "member";
+
 export interface PersonSlot {
-  kind: "lead" | "member";
+  kind: "person";
+  role: SlotRole;
   person: Person;
   badges: LoanBadgeInfo[];
   rarity: Rarity;
@@ -67,6 +72,8 @@ export interface PersonSlot {
 
 export interface GapSlot {
   kind: "gap";
+  /** `lead` means the domain has no lead yet: an empty lead seat. */
+  role: SlotRole;
   gap: Gap;
   x: number;
   y: number;
@@ -158,8 +165,9 @@ function slotId(domainName: string, key: string): string {
 /** Total gaps for a domain including everything nested beneath it. */
 function countGapsDeep(domain: Domain): number {
   const own = (domain.gaps ?? []).reduce((sum, gap) => sum + gap.count, 0);
+  const lead = domain.leadGap?.count ?? 0;
   const nested = (domain.subdomains ?? []).reduce((sum, sub) => sum + countGapsDeep(sub), 0);
-  return own + nested;
+  return own + lead + nested;
 }
 
 interface Measured {
@@ -207,23 +215,34 @@ function collectSlots(
     ];
   };
 
-  const pushPerson = (person: Person, kind: "lead" | "member") => {
+  const pushPerson = (person: Person, role: SlotRole) => {
     if (seen.has(person.id)) return;
     seen.add(person.id);
     slots.push({
-      kind,
+      kind: "person",
+      role,
       person,
       badges: badgesFor(person),
-      rarity: inferRarity(person, kind === "lead"),
+      rarity: inferRarity(person, role === "lead"),
       width: options.cardWidth,
       height: options.cardHeight,
       id: slotId(domain.name, person.id),
     });
   };
 
+  // Lead seat first, whether it is filled by a person or standing empty.
   if (domain.lead) {
     const lead = peopleById.get(domain.lead);
     if (lead) pushPerson(lead, "lead");
+  } else if (domain.leadGap) {
+    slots.push({
+      kind: "gap",
+      role: "lead",
+      gap: domain.leadGap,
+      width: options.cardWidth,
+      height: options.cardHeight,
+      id: slotId(domain.name, "lead-gap"),
+    });
   }
   for (const memberId of domain.members ?? []) {
     const person = peopleById.get(memberId);
@@ -236,7 +255,8 @@ function collectSlots(
       if (loan.domain !== domain.name || seen.has(person.id)) continue;
       seen.add(person.id);
       slots.push({
-        kind: "member",
+        kind: "person",
+        role: "member",
         person,
         badges: [
           {
@@ -254,9 +274,11 @@ function collectSlots(
     }
   }
 
+  // Member gaps land last, so the grid reads lead -> real members -> vacancies.
   for (const [index, gap] of (domain.gaps ?? []).entries()) {
     slots.push({
       kind: "gap",
+      role: "member",
       gap,
       width: options.cardWidth,
       height: options.cardHeight,
@@ -464,7 +486,7 @@ function collectLoanLinks(
   const placed = new Map<string, PersonSlot>();
   for (const node of nodes) {
     for (const slot of node.slots) {
-      if (slot.kind !== "gap") placed.set(slot.id, slot);
+      if (slot.kind === "person") placed.set(slot.id, slot);
     }
   }
 

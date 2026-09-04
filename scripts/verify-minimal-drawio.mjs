@@ -72,9 +72,18 @@ check(
 );
 check("minimal 卡不画标签 chip（无 fillColor=#000000;opacity=60）", !xml.includes("fillColor=#000000;opacity=60"));
 check("负责人用皇冠符号而非「负责人」横幅", xml.includes("♛") && !xml.includes('value="负责人"'));
+// v1.5：hearthstone 的皇冠不再唯 minimal 独有 —— 负责人缺口也叠一个虚线皇冠。
+// 区别在于 hearthstone 的**在任**负责人仍用横幅，皇冠只出现在虚线（缺口）cell 上。
 check(
-  "hearthstone 仍用「负责人」横幅（未被 minimal 改动）",
-  hs.includes('value="负责人"') && !hs.includes("♛"),
+  "hearthstone 在任负责人仍用「负责人」横幅（未被 minimal 改动）",
+  hs.includes('value="负责人"'),
+);
+check(
+  "hearthstone 的 ♛ 只用于负责人缺口（同 cell 必带 dashed=1）",
+  hs
+    .split("\n")
+    .filter((line) => line.includes('value="♛"'))
+    .every((line) => line.includes("dashed=1")),
 );
 
 // --- 领域容器 --------------------------------------------------------------
