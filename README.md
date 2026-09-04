@@ -38,7 +38,7 @@ Minimal 主题 —— 只留头像和名字，适合人多的大图：
 - 💬 人物 Markdown 备注（翻卡 / hover 浮层）
 - 🚨 缺口显示 & 负责人缺口
 - 🔀 借调关系可视化
-- 📤 导出 drawio（多 page，可继续编辑）
+- 📤 导出 drawio（多 page，可继续编辑），或一键复制 XML 到剪贴板
 - 🖼 导出 PNG（zip 打包，每个领域一张）
 - 🌍 头像多来源：URL / file / gravatar / github / dicebear / initials
 
@@ -193,7 +193,11 @@ people:
 
 ## 导出
 
-两种导出都以**顶层领域**为单位切分。
+header 右上角三个入口，都以**顶层领域**为单位切分：
+
+- **导出 drawio**：下载 `.drawio` 文件，直接用 draw.io 打开
+- **复制 XML**：把 drawio XML 复制到剪贴板，粘贴到 draw.io 的 "编辑 → 从 XML 导入" 里
+- **导出 PNG (zip)**：每个顶层领域一张 PNG，打包下载
 
 ### drawio
 
@@ -202,6 +206,8 @@ people:
 - 头像抓取后内联成 data URI，离线打开也有头像（因此文件偏大，demo 约 2MB）
 - 人物 / 缺口的备注写进 cell 的 value，可搜索、可编辑
 - 文件名 `{meta.title}.drawio`
+
+「复制 XML」在**浏览器本地**生成同样的 XML，不走 `/api/drawio`，所以离线也能用、也更快。代价是头像保持 URL 而不内联成 data URI，因此体积小很多（demo 约 90 KB），但 draw.io 里显示头像需要联网。剪贴板被浏览器拦下时会依次回退到 `execCommand('copy')`，最后弹出全文让你手动复制。
 
 ### PNG
 

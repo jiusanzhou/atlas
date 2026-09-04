@@ -1,14 +1,18 @@
 "use client";
 
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
-import { Download, ImageDown, Loader2, Users } from "lucide-react";
+import { Copy, Download, ImageDown, Loader2, Users, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigInput } from "@/components/ConfigInput";
 import { DomainTree } from "@/components/DomainTree";
 import { Canvas } from "@/components/Canvas";
 import { ThemeSwitcher, storeTheme, useStoredTheme } from "@/components/ThemeSwitcher";
 import { ConfigError, parseConfig, type ConfigFormat } from "@/lib/parser";
+import { copyText } from "@/lib/clipboard";
+import { toDrawioXML } from "@/lib/drawio";
 import { domainGaps, domainLabel, totalGaps } from "@/lib/layout";
 import type { Config, ThemeName } from "@/lib/schema";
 import { getTheme } from "@/lib/themes";
@@ -59,6 +63,8 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
   const [themeOverride, setThemeOverride] = useState<ThemeName | null>(null);
   const [busy, setBusy] = useState<"drawio" | "png" | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  // Last-resort surface when both clipboard paths are blocked.
+  const [manualXml, setManualXml] = useState<string | null>(null);
 
   // Typing should not block on re-layout of a large tree.
   const deferredSource = useDeferredValue(source);
@@ -100,6 +106,25 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
     setThemeOverride(name);
     storeTheme(name);
   }, []);
+
+  // Generated in the browser: no round trip, and it works offline. Avatars stay
+  // as URLs instead of inlined data URIs, which is also why it is much smaller
+  // than the downloaded .drawio file.
+  const copyXml = useCallback(async () => {
+    if (!config) return;
+
+    const xml = toDrawioXML(config);
+    const sizeKB = (xml.length / 1024).toFixed(1);
+    const outcome = await copyText(xml);
+
+    if (outcome === "manual") {
+      setManualXml(xml);
+      toast.error("复制失败，请检查浏览器权限");
+      return;
+    }
+
+    toast.success(`已复制 · ${config.domains.length} 个 diagram · ${sizeKB} KB`);
+  }, [config]);
 
   const exportFile = useCallback(
     async (kind: "drawio" | "png") => {
@@ -172,6 +197,17 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
           </Button>
 
           <Button
+            variant="secondary"
+            size="sm"
+            disabled={!config}
+            onClick={() => void copyXml()}
+            className="h-8 border border-sky-800/70 bg-sky-950/60 text-xs text-sky-200 hover:bg-sky-900/70"
+          >
+            <Copy size={14} />
+            复制 XML
+          </Button>
+
+          <Button
             size="sm"
             disabled={!config || busy !== null}
             onClick={() => void exportFile("png")}
@@ -186,6 +222,44 @@ export function AtlasEditor({ initialSource }: AtlasEditorProps) {
       {exportError && (
         <div className="shrink-0 border-b border-red-900/60 bg-red-950/40 px-5 py-2 text-xs text-red-300">
           {exportError}
+        </div>
+      )}
+
+      {manualXml !== null && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="手动复制 drawio XML"
+          className="absolute inset-0 z-50 flex items-center justify-center bg-zinc-950/80 p-8"
+        >
+          <div className="flex max-h-full w-full max-w-3xl flex-col gap-3 rounded-lg border border-zinc-700 bg-zinc-900 p-4 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-100">手动复制 XML</h2>
+                <p className="mt-1 text-xs text-zinc-400">
+                  浏览器拒绝了剪贴板写入，请全选下面的内容手动复制。
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="关闭"
+                onClick={() => setManualXml(null)}
+                className="text-zinc-400 hover:text-zinc-100"
+              >
+                <X size={14} />
+              </Button>
+            </div>
+            <Textarea
+              readOnly
+              autoFocus
+              value={manualXml}
+              onFocus={(event) => event.currentTarget.select()}
+              // field-sizing-fixed: the base Textarea grows with content, and
+              // the XML is thousands of lines long.
+              className="h-80 resize-none font-mono text-xs field-sizing-fixed"
+            />
+          </div>
         </div>
       )}
 
