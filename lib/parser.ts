@@ -5,14 +5,87 @@ import { ConfigSchema, type Config, type Domain } from "./schema";
 export type ConfigFormat = "json" | "yaml" | "toml";
 
 export class ConfigError extends Error {
+  /** Human-readable lines, already prefixed with a location when known. */
   readonly issues: string[];
+  /** 1-based line of a syntax error, when the underlying parser reports one. */
+  readonly line?: number;
 
-  constructor(message: string, issues: string[] = []) {
+  constructor(message: string, issues: string[] = [], line?: number) {
     super(message);
     this.name = "ConfigError";
     this.issues = issues;
+    this.line = line;
   }
 }
+
+interface SyntaxLocation {
+  /** 1-based. */
+  line?: number;
+  message: string;
+}
+
+/**
+ * Each parser reports position differently, and none of them expose a common
+ * shape: js-yaml carries a `mark` object, @iarna/toml a 0-based `line`, and
+ * `JSON.parse` only embeds "(line N column M)" in its message text. This pulls a
+ * line number out of whichever one threw so the UI can point at the offending row.
+ */
+function locateSyntaxError(error: unknown, format: ConfigFormat): SyntaxLocation {
+  const raw = error instanceof Error ? error.message : String(error);
+
+  if (format === "yaml") {
+    const mark = (error as { mark?: { line?: number } }).mark;
+    const reason = (error as { reason?: string }).reason;
+    // js-yaml's `mark.line` is 0-based, and its own message already appends a
+    // "(line:col)" plus a source snippet that would be noise in a list.
+    return {
+      line: typeof mark?.line === "number" ? mark.line + 1 : undefined,
+      message: reason ?? raw.split("\n")[0] ?? raw,
+    };
+  }
+
+  if (format === "toml") {
+    const line = (error as { line?: number }).line;
+    // @iarna/toml is 0-based too, and appends a multi-line source excerpt.
+    return {
+      line: typeof line === "number" ? line + 1 : undefined,
+      message: raw.split("\n")[0]?.replace(/\s*at row \d+, col \d+, pos \d+:?$/, "") ?? raw,
+    };
+  }
+
+  // V8 formats recoverable JSON errors as "... in JSON at position 13 (line 3
+  // column 3)". Some messages (e.g. "Unexpected token ','") carry no position,
+  // so the tail is stripped only when it is actually there.
+  const match = /\s*in JSON at position \d+ \(line (\d+) column (\d+)\)/.exec(raw);
+  if (!match) return { message: raw };
+
+  return {
+    line: Number.parseInt(match[1], 10),
+    message: `${raw.slice(0, match.index)}（第 ${match[1]} 行 第 ${match[2]} 列）`,
+  };
+}
+
+/**
+ * zod paths are arrays of keys and indices; rendering indices as `[1]` rather
+ * than `.1` makes a deep path like `domains[1].gaps[0].priority` readable.
+ */
+function formatIssuePath(path: ReadonlyArray<PropertyKey>): string {
+  if (path.length === 0) return "(根)";
+
+  let out = "";
+  for (const segment of path) {
+    if (typeof segment === "number") out += `[${segment}]`;
+    else out += out === "" ? String(segment) : `.${String(segment)}`;
+  }
+  return out;
+}
+
+/**
+ * A TOML table header (`[meta]`, `[[domains]]`, `[a.b]`) also starts with `[`,
+ * which would otherwise be read as the opening bracket of a JSON array. Only a
+ * bare dotted key matches, so a real JSON array's first line never does.
+ */
+const TOML_TABLE_HEADER = /^\[\[?\s*[A-Za-z_][\w-]*(\s*\.\s*[A-Za-z_][\w-]*)*\s*\]\]?$/;
 
 /**
  * TOML needs `key = value` at top level; YAML uses `key: value`. An `=` before
@@ -21,12 +94,13 @@ export class ConfigError extends Error {
 export function detectFormat(source: string): ConfigFormat {
   const text = source.trim();
   if (!text) throw new ConfigError("配置为空");
-  if (text.startsWith("{") || text.startsWith("[")) return "json";
+  if (text.startsWith("{")) return "json";
 
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
-    if (line.startsWith("[") && line.endsWith("]")) return "toml";
+    if (TOML_TABLE_HEADER.test(line)) return "toml";
+    if (line.startsWith("[")) return "json";
     const eq = line.indexOf("=");
     const colon = line.indexOf(":");
     if (eq !== -1 && (colon === -1 || eq < colon)) return "toml";
@@ -125,17 +199,25 @@ export function parseConfig(source: string, format?: ConfigFormat): ParseResult 
   try {
     raw = parseRaw(source, resolved);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new ConfigError(`${resolved.toUpperCase()} 语法错误`, [message]);
+    const { line, message } = locateSyntaxError(error, resolved);
+    const label = resolved.toUpperCase();
+    throw new ConfigError(
+      line ? `${label} 语法错误（第 ${line} 行）` : `${label} 语法错误`,
+      [line ? `第 ${line} 行: ${message}` : message],
+      line,
+    );
   }
 
   const result = ConfigSchema.safeParse(raw);
   if (!result.success) {
-    const issues = result.error.issues.map((issue) => {
-      const path = issue.path.join(".") || "(root)";
-      return `${path}: ${issue.message}`;
-    });
-    throw new ConfigError("配置不符合 schema", issues);
+    const issues = result.error.issues.map(
+      (issue) => `${formatIssuePath(issue.path)}: ${issue.message}`,
+    );
+    const count = issues.length;
+    throw new ConfigError(
+      count === 1 ? "配置校验失败（1 处）" : `配置校验失败（${count} 处）`,
+      issues,
+    );
   }
 
   return { config: result.data, format: resolved, warnings: checkReferences(result.data) };

@@ -33,6 +33,13 @@ export interface ThemeGeometry {
   levelGapY: number;
 }
 
+/**
+ * A theme that is not yet registered in `ThemeName`. Same token surface, but the
+ * name is a free string so an in-progress palette can live in the repo without
+ * being selectable. Promote to `ThemeTokens` by adding the name to `THEMES`.
+ */
+export type DraftThemeTokens = Omit<ThemeTokens, "name"> & { name: string };
+
 export interface ThemeTokens {
   name: ThemeName;
   label: string;

@@ -1,8 +1,16 @@
-import type { ThemeTokens } from "./types";
+// TODO: v2 - full implementation
+//
+// Unfinished. Cyan-on-navy drafting palette over hearthstone's geometry and
+// `variant: "card"`, which makes it read as "hearthstone with different colours"
+// rather than a distinct theme. Withdrawn from the theme picker in v1.6.
+//
+// To finish it: add `geometry` overrides (a blueprint look wants tighter,
+// squarer cards), then add "blueprint" back to THEMES in lib/schema.ts and
+// register it in lib/themes/index.ts.
+import type { DraftThemeTokens } from "./types";
 import { hearthstone } from "./hearthstone";
 
-/** Stub theme: cyan-on-navy drafting look over the hearthstone geometry. */
-export const blueprint: ThemeTokens = {
+export const blueprint: DraftThemeTokens = {
   ...hearthstone,
   name: "blueprint",
   label: "Blueprint",

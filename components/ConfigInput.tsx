@@ -22,6 +22,9 @@ const FORMAT_LABEL: Record<ConfigFormat, string> = {
   toml: "TOML",
 };
 
+/** A long list of cascading zod issues is noise; the first few locate the problem. */
+const MAX_ISSUES = 5;
+
 export function ConfigInput({
   value,
   onChange,
@@ -85,13 +88,23 @@ export function ConfigInput({
               {error}
             </div>
             {issues.length > 0 && (
-              <ul className="mt-1.5 max-h-28 space-y-0.5 overflow-auto pl-5">
-                {issues.slice(0, 12).map((issue, index) => (
-                  <li key={index} className="list-disc text-[11px] text-red-300/90">
-                    {issue}
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="mt-1.5 max-h-32 space-y-0.5 overflow-auto pl-5">
+                  {issues.slice(0, MAX_ISSUES).map((issue, index) => (
+                    <li
+                      key={index}
+                      className="list-disc font-mono text-[11px] leading-snug break-words text-red-300/90"
+                    >
+                      {issue}
+                    </li>
+                  ))}
+                </ul>
+                {issues.length > MAX_ISSUES && (
+                  <p className="mt-1 pl-5 text-[11px] text-red-400/70">
+                    还有 {issues.length - MAX_ISSUES} 处未显示
+                  </p>
+                )}
+              </>
             )}
           </div>
         ) : (

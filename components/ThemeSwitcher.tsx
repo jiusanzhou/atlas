@@ -1,17 +1,16 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { THEMES, type ThemeName } from "@/lib/schema";
+import { THEMES, normalizeThemeName, type ThemeName } from "@/lib/schema";
 import { themes } from "@/lib/themes";
 
 export const THEME_STORAGE_KEY = "atlas:theme";
 
 function readStoredTheme(): ThemeName | null {
   try {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return stored && (THEMES as readonly string[]).includes(stored)
-      ? (stored as ThemeName)
-      : null;
+    // normalizeThemeName maps the withdrawn business/blueprint names onto
+    // hearthstone, so a browser that remembers one of them still renders.
+    return normalizeThemeName(window.localStorage.getItem(THEME_STORAGE_KEY));
   } catch {
     // Private mode / blocked storage: fall back to the config's own theme.
     return null;

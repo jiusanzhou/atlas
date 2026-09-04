@@ -2,7 +2,8 @@ import { z } from "zod";
 
 export const PRIORITIES = ["low", "medium", "high", "critical"] as const;
 export const RARITIES = ["common", "rare", "epic", "legendary"] as const;
-export const THEMES = ["hearthstone", "minimal", "business", "blueprint"] as const;
+/** Themes that are fully implemented and therefore selectable. */
+export const THEMES = ["hearthstone", "minimal"] as const;
 
 export type Priority = (typeof PRIORITIES)[number];
 
@@ -61,6 +62,25 @@ export const DomainSchema: z.ZodType<DomainInput> = z
     path: ["leadGap"],
   });
 
+/**
+ * Themes that existed as stubs before v1.6 and were withdrawn. Configs and
+ * localStorage entries still naming them resolve to the default rather than
+ * failing validation; a genuine typo still errors.
+ */
+export const RETIRED_THEMES = ["business", "blueprint"] as const;
+
+const retired: ReadonlySet<string> = new Set(RETIRED_THEMES);
+
+export function normalizeThemeName(value: unknown): ThemeName | null {
+  if (typeof value !== "string") return null;
+  if (retired.has(value)) return "hearthstone";
+  return (THEMES as readonly string[]).includes(value) ? (value as ThemeName) : null;
+}
+
+export const ThemeSchema = z
+  .preprocess((value) => (retired.has(value as string) ? "hearthstone" : value), z.enum(THEMES))
+  .default("hearthstone");
+
 export const MetaSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
@@ -69,7 +89,7 @@ export const MetaSchema = z.object({
 
 export const ConfigSchema = z.object({
   meta: MetaSchema.optional(),
-  theme: z.enum(THEMES).default("hearthstone"),
+  theme: ThemeSchema,
   domains: z.array(DomainSchema).min(1),
   people: z.array(PersonSchema),
 });

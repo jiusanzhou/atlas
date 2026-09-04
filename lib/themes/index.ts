@@ -1,20 +1,22 @@
-import type { ThemeName } from "../schema";
+import { normalizeThemeName, type ThemeName } from "../schema";
 import type { ThemeTokens } from "./types";
 import { hearthstone } from "./hearthstone";
 import { minimal } from "./minimal";
-import { business } from "./business";
-import { blueprint } from "./blueprint";
 
+/**
+ * Only fully implemented themes are registered. `business` / `blueprint` still
+ * live in this folder as unfinished palettes but are deliberately not wired up:
+ * they inherited hearthstone's geometry, so switching to them looked identical
+ * to hearthstone and read as a bug. See lib/themes/business.ts.
+ */
 export const themes: Record<ThemeName, ThemeTokens> = {
   hearthstone,
   minimal,
-  business,
-  blueprint,
 };
 
 export function getTheme(name: ThemeName | string | undefined): ThemeTokens {
-  if (name && name in themes) return themes[name as ThemeName];
-  return hearthstone;
+  const resolved = normalizeThemeName(name);
+  return resolved ? themes[resolved] : hearthstone;
 }
 
 export type {
@@ -24,4 +26,4 @@ export type {
   ThemeVariant,
   ThemeGeometry,
 } from "./types";
-export { hearthstone, minimal, business, blueprint };
+export { hearthstone, minimal };

@@ -1,8 +1,17 @@
-import type { ThemeTokens } from "./types";
+// TODO: v2 - full implementation
+//
+// Unfinished. This is a recolour of hearthstone that still inherits its
+// geometry and `variant: "card"`, so on screen it is nearly indistinguishable
+// from hearthstone. It was withdrawn from the theme picker in v1.6 for that
+// reason and is kept only as a starting palette.
+//
+// To finish it: give it its own `geometry` overrides and decide whether it needs
+// a distinct `variant`, then add "business" back to THEMES in lib/schema.ts and
+// register it in lib/themes/index.ts (which also widens its type to ThemeTokens).
+import type { DraftThemeTokens } from "./types";
 import { hearthstone } from "./hearthstone";
 
-/** Stub theme: flat corporate palette layered over the hearthstone geometry. */
-export const business: ThemeTokens = {
+export const business: DraftThemeTokens = {
   ...hearthstone,
   name: "business",
   label: "Business",

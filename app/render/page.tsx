@@ -1,5 +1,5 @@
 import { DomainTree } from "@/components/DomainTree";
-import { ConfigSchema, THEMES, type ThemeName } from "@/lib/schema";
+import { ConfigSchema, normalizeThemeName } from "@/lib/schema";
 import { parseConfig } from "@/lib/parser";
 import { loadDemoConfigSource } from "@/lib/demo";
 import { findTopLevelDomain } from "@/lib/layout";
@@ -31,8 +31,9 @@ export default async function RenderPage({ searchParams }: RenderPageProps) {
     config = parseConfig(await loadDemoConfigSource()).config;
   }
 
-  if (params.theme && (THEMES as readonly string[]).includes(params.theme)) {
-    config = { ...config, theme: params.theme as ThemeName };
+  const themeOverride = normalizeThemeName(params.theme);
+  if (themeOverride) {
+    config = { ...config, theme: themeOverride };
   }
 
   const domain = findTopLevelDomain(config, params.domain) ?? config.domains[0];

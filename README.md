@@ -1,156 +1,353 @@
 # Atlas
 
-配置驱动的组织架构 / 领域人力管理平台。一份 yaml / json / toml 配置，渲染出炉石风格的领域树与人物卡，突出**领域负责人**、**核心成员**、**人力缺口**和**借调交叉支撑**。
+[![CI](https://github.com/jiusanzhou/atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/jiusanzhou/atlas/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjiusanzhou%2Fatlas)
 
-## 用途
+配置驱动的组织架构 & 人力管理可视化平台。
 
-把「谁负责哪个领域、缺多少人、谁被借调到哪里」这件事从散落的表格里搬到一张可视化地图上：
+一份 yaml/json/toml 配置，渲染出炉石风格的领域树 + 人物卡，突出：
 
-- **领域树**：领域可无限层级嵌套，父子关系用递进缩进表达
-- **人物卡**：负责人加冕、稀有度边框（铜 / 银 / 紫 / 金）、技能标签、借调徽章
-- **缺口卡**：灰色虚线 + 「招募中」+ 优先级红点，一眼看出招聘压力
-- **借调箭头**：虚线弧线连接主属地与借调领域，标注占比
+- 领域负责人
+- 核心成员
+- 人力缺口（含负责人缺口）
+- 借调交叉支撑
 
-## 启动
+用来回答那些散落在表格里说不清的问题：**这个方向谁在负责？缺几个人？谁被借去了哪儿？**
+
+## Screenshot
+
+Hearthstone 主题 —— 领域树、人物卡、缺口卡：
+
+![Hearthstone theme](docs/screenshots/hearthstone.png)
+
+Minimal 主题 —— 只留头像和名字，适合人多的大图：
+
+![Minimal theme](docs/screenshots/minimal.png)
+
+点开人物卡看 Markdown 备注：
+
+![Card flip](docs/screenshots/flip.png)
+
+## 特性
+
+- 🎴 卡牌风格可视化（Hearthstone / Minimal 两套主题）
+- 🌲 领域树无限嵌套
+- 📋 一份配置驱动全部渲染，YAML / JSON / TOML 自动识别
+- 🖼 独立画布：拖拽 + 缩放 + fit，不会带着整个页面一起滚
+- 💬 人物 Markdown 备注（翻卡 / hover 浮层）
+- 🚨 缺口显示 & 负责人缺口
+- 🔀 借调关系可视化
+- 📤 导出 drawio（多 page，可继续编辑）
+- 🖼 导出 PNG（zip 打包，每个领域一张）
+- 🌍 头像多来源：URL / file / gravatar / github / dicebear / initials
+
+## 快速开始
 
 ```bash
-pnpm install
-pnpm dev          # http://localhost:3000
-pnpm build        # 生产构建
+pnpm i
+pnpm dev
 ```
 
-首页左侧是配置编辑区（默认载入 `examples/demo.yaml`），右侧按顶层领域分 Tab 实时渲染，顶部三个按钮：切换主题 / 导出 drawio / 导出 PNG (zip)。
+打开 <http://localhost:3000/>，左边编辑配置，右边实时出图。首屏载入 `examples/demo.yaml`。
 
-PNG 导出需要 Chrome。若 `pnpm install` 阶段浏览器下载失败：
+> `pnpm i` 默认**不下载** Chrome（约 300MB）。这只影响 PNG 导出，其余功能都正常；要开启见 [PNG 导出需要 Chrome](#png-导出需要-chrome)。
 
-```bash
-pnpm exec puppeteer browsers install chrome
+## 配置字段参考
+
+完整字段表、按能力查用法、校验规则见 **[docs/CONFIG.md](docs/CONFIG.md)**。下面是速查。
+
+### 顶层结构
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+| --- | --- | --- | --- | --- |
+| `meta` | object | 否 | — | `title` / `description` / `version`。`title` 也用作导出文件名 |
+| `theme` | enum | 否 | `hearthstone` | `hearthstone` \| `minimal` |
+| `domains` | Domain[] | **是** | — | 至少一个。一个**顶层**领域 = 一个 tab = 导出的一页 |
+| `people` | Person[] | **是** | — | 全量人员名册，可以是 `[]`，但字段必须存在 |
+
+### Domain（领域）
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+| --- | --- | --- | --- | --- |
+| `name` | string | **是** | — | 唯一标识，被 `lead` / `members` / `homeDomain` / `lendTo.domain` 引用 |
+| `displayName` | string | 否 | 回落 `name` | 界面显示名，适合写中文 |
+| `lead` | string | 否 | — | 负责人 person `id`。**与 `leadGap` 互斥** |
+| `leadGap` | Gap | 否 | — | 负责人空缺（等招）。**与 `lead` 互斥** |
+| `members` | string[] | 否 | `[]` | 成员 person `id` 列表 |
+| `gaps` | Gap[] | 否 | `[]` | 成员缺口 |
+| `subdomains` | Domain[] | 否 | `[]` | 子领域，结构相同，可无限嵌套 |
+| `color` | string | 否 | 主题色 | 领域框颜色，如 `"#4a3113"` |
+| `description` | string | 否 | — | 领域说明 |
+
+领域内卡片顺序固定：**负责人（真人或缺口）→ 成员真人 → 借入的人 → 成员缺口**。
+
+### Person（人）
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+| --- | --- | --- | --- | --- |
+| `id` | string | **是** | — | 唯一标识 |
+| `name` | string | **是** | — | 显示名 |
+| `title` | string | 否 | — | 职位，显示在名字下方 |
+| `homeDomain` | string | 否 | — | 主属地领域 `name`。**决定借调徽章方向** |
+| `avatar` | string | 否 | 首字母头像 | 见[头像来源](#头像来源) |
+| `tags` | string[] | 否 | `[]` | 技能标签，卡面最多显示 3 个 |
+| `rarity` | enum | 否 | 自动推断 | `legendary` \| `epic` \| `rare` \| `common` |
+| `lendTo` | Loan[] | 否 | `[]` | 借调去向 |
+| `comment` | string | 否 | — | Markdown 备注，翻卡 / 浮层可见 |
+
+`rarity` 省略时按顺序推断：负责人 → `legendary`，有借调 → `epic`，标签 ≥ 3 → `rare`，其余 `common`。
+
+### Gap（缺口）
+
+同一结构用在 `gaps[]`（成员缺口）和 `leadGap`（负责人缺口）两处。
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+| --- | --- | --- | --- | --- |
+| `role` | string | **是** | — | 缺什么角色，如 `SRE 工程师` |
+| `count` | int | 否 | `1` | 缺几个，正整数。`> 1` 时卡面显示 `×N` |
+| `priority` | enum | **是** | — | `critical`(红) \| `high`(橙) \| `medium`(黄) \| `low`(灰) |
+| `note` | string | 否 | — | 一句话说明，纯文本 |
+| `comment` | string | 否 | — | Markdown 招聘要求 |
+
+缺口卡长得像「一个空位的人」：虚线框 + 虚线人形剪影 + 优先级色点。顶部与 tab 上的「缺 N」是 `count` 之和（含 `leadGap` 与所有子领域）。
+
+### Loan（借调）
+
+写在 person 的 `lendTo[]` 下。
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `domain` | string | **是** | 借调目标领域 `name` |
+| `ratio` | number | **是** | 投入比例 `0`–`1` |
+| `role` | string | 否 | 在目标领域做什么 |
+
+**同图内**的借调画虚线箭头；**跨图**的只在卡角留徽章（橙 `→` 借出 / 蓝 `←` 借入）。`homeDomain` 决定方向，不写就只显示 `← 外部`。一个人在多个领域重复出现是设计如此（主属地 + 借调领域各一张）。
+
+### 校验与报错
+
+- **红色（阻塞渲染）**：缺必填字段、`lead` 与 `leadGap` 同时填、枚举拼错、语法错误。语法错误会报**具体行号**，schema 错误按 `domains[1].gaps[0].priority: 原因` 列出，一次最多 5 条
+- **黄色（照常渲染）**：引用对不上 —— id 不存在、领域名不存在、id / name 重复
+
+早期的 `business` / `blueprint` 主题是未完成的 stub，v1.6 已移除。**旧配置写了这两个值不报错**，自动回落 `hearthstone`；拼写错误（如 `hearthstne`）仍会报错。
+
+### 最小可用示例
+
+```yaml
+domains:
+  - name: infra
+    lead: torvalds
+
+people:
+  - id: torvalds
+    name: Linus Torvalds
 ```
 
-也可以用本机已装的 Chrome：
-
-```bash
-export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-```
-
-## 配置样例
-
-三种格式自动识别（按首个有效行的 `=` / `:` / `{` 判断），字段完全一致。
+## 配置示例
 
 ```yaml
 meta:
   title: 技术中台组织架构
-  version: "1.0.0"
 
-theme: hearthstone          # hearthstone | business | blueprint
+theme: hearthstone
 
 domains:
-  - name: infra             # 唯一 key
+  - name: infra
     displayName: 基础设施
-    lead: torvalds          # person id
-    color: "#4a3113"        # 可选，覆盖主题色
-    description: 内核、网络与存储底座
-    subdomains:             # 递归嵌套
-      - name: storage
-        displayName: 存储
-        lead: antirez
-        members: [pcarrier]
+    lead: torvalds
+    color: "#4a3113"
+    subdomains:
+      - name: compute
+        displayName: 计算与调度
+        lead: gvanrossum
         gaps:
-          - role: 分布式存储专家
-            count: 1
-            priority: critical      # low | medium | high | critical
-            note: 自研 KV 引擎缺主力
+          - role: SRE 工程师
+            count: 2
+            priority: high
+            note: 支撑多活容灾演练
+  - name: platform
+    displayName: 应用平台
+    leadGap:                       # 负责人空缺，与 lead 互斥
+      role: 平台负责人
+      priority: critical
 
 people:
-  - id: antirez
-    name: Salvatore Sanfilippo
-    title: 存储负责人
-    homeDomain: storage             # 主属地领域
-    avatar: github:antirez
-    tags: [Redis, C, 存储引擎]      # 卡面最多展示 3 个
-    rarity: epic                    # 可选，默认按角色推断
+  - id: torvalds
+    name: Linus Torvalds
+    title: 首席架构师
+    homeDomain: infra
+    avatar: github:torvalds
+    tags: [Kernel, C, 分布式]
+    rarity: legendary
+    comment: "**强项**：内核方向的定海神针。"
+  - id: gvanrossum
+    name: Guido van Rossum
+    homeDomain: compute
     lendTo:
-      - domain: data                # 借调到哪个领域
-        ratio: 0.3                  # 0-1
-        role: 实时存储选型
+      - domain: platform           # 借调 30% 到应用平台
+        ratio: 0.3
+        role: 调度层支撑
 ```
 
-`rarity` 省略时按角色推断：领域负责人 → legendary，有借调 → epic，标签 ≥3 → rare，其余 common。
+完整版见 [`examples/demo.yaml`](examples/demo.yaml)。
 
-除 zod schema 校验外，还会做交叉引用检查（id 唯一性、`lead` / `members` / `lendTo.domain` / `homeDomain` 是否存在），不合法的引用以告警形式提示，不阻塞渲染。
+## 导出
 
-### 头像 fallback 链
+两种导出都以**顶层领域**为单位切分。
 
-`avatar` 字段支持前缀协议，任何一环失败都会退化为首字母 SVG，卡片永远能渲染：
+### drawio
 
-| 写法 | 行为 |
-| --- | --- |
-| `https://…` / `http://…` | 直接使用 |
-| `file://path` | 相对 config 目录读取，转 data URI（限制在目录内，防止 `../` 越界） |
-| `gravatar:a@b.com` | `gravatar.com/avatar/{md5}?d=identicon` |
-| `github:username` | `github.com/{user}.png` |
-| `dicebear:style` | `api.dicebear.com/7.x/{style}/svg?seed={id}` |
-| `initials` 或留空 | 生成首字母 SVG，背景色按 name hash |
+- 每个顶层领域一个独立 `<diagram>` **page**，页名就是领域显示名
+- 全部是原生 mxGraph cell，在 draw.io / diagrams.net 里**可以继续编辑**，不栅格化
+- 头像抓取后内联成 data URI，离线打开也有头像（因此文件偏大，demo 约 2MB）
+- 人物 / 缺口的备注写进 cell 的 value，可搜索、可编辑
+- 文件名 `{meta.title}.drawio`
 
-## 导出方式
+### PNG
 
-| 方式 | 说明 |
-| --- | --- |
-| **drawio** | `POST /api/drawio` → 合法 mxGraph XML，**一个顶层领域一个 `<diagram>` page**，同一个 `<mxfile>` 内。领域节点为 container，人物卡为组合 mxCell，领域→子领域为实线连线，借调以卡片角标文本呈现（不跨 page 画箭头）。头像默认内嵌 base64（离线可打开），全部保留可编辑性，不栅格化 |
-| **PNG** | `POST /api/export` → puppeteer 无头截图 `/render` 页面，**每个顶层领域一张 PNG，打包成 zip 返回**（`application/zip`，条目名 `atlas-{领域名}.png`）。支持 `scale`（默认 2，Retina）与 `width` |
-| **解析** | `POST /api/parse` → 三格式统一解析为 Config，返回 stats 与引用告警 |
+- 每个顶层领域一张 PNG，条目名 `atlas-{领域显示名}.png`，打包成 zip
+- 2 倍图（`deviceScaleFactor: 2`）
+- 服务端用 headless Chrome 截 `/render` 页面，**依赖运行环境有可用的 Chrome**
+
+> macOS 自带的 `unzip` 会忽略 zip 的 UTF-8 文件名标志位，中文条目名会报 `Illegal byte sequence`。这不是导出的 bug，用 `ditto -x -k atlas.zip ./out` 或 Finder 双击解压即可。
+
+### PNG 导出需要 Chrome
+
+`pnpm i` 默认跳过 Chrome 下载（`package.json` 的 `puppeteer.skipDownload`）。任选一种开启：
 
 ```bash
-# drawio
+# 1. 用系统已装的 Chrome（推荐，不占额外空间）
+PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" pnpm start
+
+# 2. 单独装一份 puppeteer 自带的
+pnpm exec puppeteer browsers install chrome-headless-shell
+
+# 3. 装依赖时就一起下载
+PUPPETEER_SKIP_DOWNLOAD=false pnpm i
+```
+
+导出接口还会自动扫几个常见的系统 Chrome 路径，多数机器上不配也能跑。
+
+### HTTP API
+
+| 接口 | 说明 |
+| --- | --- |
+| `POST /api/parse` | 三格式统一解析，返回 Config、stats 与引用告警 |
+| `POST /api/drawio` | 返回 mxGraph XML（多 page） |
+| `POST /api/export` | 返回 zip（每个顶层领域一张 PNG），支持 `scale` / `width` |
+
+请求体给 `{"source": "<配置文本>"}` 或 `{"config": {...}}`。
+
+```bash
 curl -X POST localhost:3000/api/drawio \
   -H 'Content-Type: application/json' \
-  -d "{\"source\": $(python3 -c 'import json;print(json.dumps(open("examples/demo.yaml").read()))')}" \
+  -d "{\"source\": $(node -e 'console.log(JSON.stringify(require("fs").readFileSync("examples/demo.yaml","utf8")))')}" \
   -o atlas.drawio
-
-# PNG @2x（zip，每个顶层领域一张）
-curl -X POST localhost:3000/api/export \
-  -H 'Content-Type: application/json' \
-  -d '{"config": {...}, "scale": 2}' -o atlas.zip
 ```
 
-zip 条目名用 UTF-8（general purpose bit 11），Finder / `ditto` / Windows / Linux 均可正确解压；macOS 自带的 `unzip` 会忽略该标志位而报 `Illegal byte sequence`，用 `ditto -x -k` 代替。
+`/render?config=<urlencoded json>&domain=<顶层领域名>&theme=minimal` 是无编辑器外壳的纯渲染页，一次渲染一个顶层领域，PNG 导出逐个访问它。
 
-`/render?config=<urlencoded json>&domain=<顶层领域名>&theme=hearthstone` 是无编辑器 chrome 的纯净渲染页，一次渲染一个顶层领域的树，PNG 导出逐个访问它；`domain` 省略或不匹配时回退到第一个顶层领域。
+## 头像来源
 
-## 主题扩展
+`avatar` 支持这些写法，都不需要配图片域名白名单：
 
-主题是一组 token（`lib/themes/types.ts` 的 `ThemeTokens`），web 渲染与 drawio 导出共用同一份，因此加主题不需要碰组件：
+| 写法 | 示例 | 说明 |
+| --- | --- | --- |
+| `github:用户名` | `github:torvalds` | GitHub 头像 |
+| `gravatar:邮箱` | `gravatar:a@example.com` | 按邮箱 MD5 取 Gravatar，无图时 identicon |
+| `dicebear:风格` | `dicebear:bottts` | DiceBear 生成，以 person `id` 为种子 |
+| `https://` / `http://` | `https://example.com/a.png` | 直接给 URL |
+| `data:` | `data:image/png;base64,...` | 内联图片 |
+| `file://相对路径` | `file://avatars/zoe.png` | 相对 `examples/` 读取，仅服务端，禁止 `../` 越出 |
+| `initials` 或省略 | — | 名字首字母 SVG（中文取一字），底色由名字哈希决定 |
 
-1. 新建 `lib/themes/yours.ts`，导出满足 `ThemeTokens` 的对象（可 `...hearthstone` 继承几何再覆盖配色）
-2. 在 `lib/themes/index.ts` 的 `themes` 里注册
-3. 在 `lib/schema.ts` 的 `THEMES` 数组加上名字
+任何来源取不到图都会退回首字母头像，不会出现破图。
 
-`hearthstone` 是完整实现；`business`（扁平商务）与 `blueprint`（青蓝图纸）目前是继承 hearthstone 几何的配色 stub，可直接切换查看。
+## 部署
 
-## 架构
+### 本地
+
+```bash
+pnpm build && pnpm start
+```
+
+### Docker
+
+```bash
+docker build -t atlas . && docker run -p 3000:3000 atlas
+```
+
+`node:22-alpine` 多阶段构建 + Next.js standalone 输出，镜像里装了 Alpine 的 `chromium`，所以 **Docker 里 PNG 导出可用**；另带 `font-noto-cjk`，中文不会渲染成方框。
+
+### Vercel
+
+零配置即可部署，或用 README 顶部的一键部署按钮。
+
+⚠️ **Vercel 部署不支持 PNG 导出** —— serverless 函数里跑不了完整的 puppeteer + Chrome。渲染、编辑、drawio 导出全部正常，只有「导出 PNG (zip)」会失败。需要 PNG 就用 Docker 或自建。
+
+## 开发
+
+```bash
+pnpm dev          # 开发服务器
+pnpm build        # 生产构建
+pnpm start        # 跑生产构建
+pnpm typecheck    # tsc --noEmit
+pnpm test         # vitest run
+pnpm test:watch   # vitest watch
+pnpm lint         # eslint
+```
+
+CI（GitHub Actions）在每次 push / PR 上跑 `typecheck` → `test` → `build`。
+
+单测覆盖 schema 校验、三格式解析、drawio XML 生成。`scripts/` 下另有一批 puppeteer 验证脚本（画布交互、主题、缺口卡、导出回归、截图），需要先起服务再跑。
+
+### 架构
 
 ```
-lib/schema.ts      zod schema + 类型（Domain 递归通过 z.lazy）
-lib/parser.ts      三格式识别与解析 + 交叉引用校验
-lib/layout.ts      单个顶层领域 → 自上而下树布局（d3-hierarchy tree），输出画布绝对坐标
-lib/avatar.ts      头像 fallback 链（sync 版给渲染，async 版给 file:// 与 base64 内联）
+lib/schema.ts      zod schema + 类型（Domain 递归用 z.lazy）
+lib/parser.ts      三格式识别与解析 + 交叉引用校验 + 错误定位
+lib/layout.ts      单个顶层领域 → 自上而下树布局（d3-hierarchy），输出画布绝对坐标
+lib/avatar.ts      头像 fallback 链（sync 给渲染，async 给 file:// 与 base64 内联）
 lib/md5.ts         gravatar 需要 MD5，WebCrypto 不提供，同构实现
 lib/drawio.ts      mxGraph XML 生成（多 page）
 lib/themes/        主题 token
 components/Canvas  可拖拽缩放的画布容器（手写，无 pan/zoom 依赖）
-components/        DomainTree → DomainCard → PersonCard / GapCard + LoanBadge
+components/        DomainTree → DomainCard → PersonCard / GapCard / MinimalCard
 ```
 
-**画布容器**：树渲染在 `Canvas` 的世界坐标里，页面自身永不滚动（`AtlasEditor` 用 `fixed inset-0`，不给 `/render` 加 `overflow: hidden`，否则 puppeteer 元素截图会被视口裁切）。空白处拖拽平移、滚轮以光标为锚点缩放（0.2×~3×）、双击或右下角工具条 fit。卡片子树标记 `data-canvas-no-pan` 以保留自身的 hover / 点击；按住空格可无视该标记强制平移。Radix 会卸载非激活 tab，所以切 tab 天然重新挂载并重新 fit。
+**一份几何，两种输出**：`lib/layout.ts` 产出画布绝对坐标，web 与 drawio 共用，所以两边排版一致。节点宽度随人员数变化，因此 d3 `tree()` 用 `nodeSize([1, 1])` 把 x 单位当像素，真实间距全交给 `separation`；每层 y 按该层最高节点单独累加，避免层高被最深分支拉齐。
 
-**一个顶层领域一张图**：`computeDomainTreeLayout(config, domain)` 只处理一个顶层领域，把它和递归的子领域排成自上而下的树，Web 端用 Tabs 切换，drawio 一个领域一个 page，PNG 一个领域一张。人员卡不进入树结构，作为领域节点的"内容附件"挂在节点内部的 grid 里。
+**主题是 token 而非 if 分支**：`ThemeTokens.variant` 决定组件走哪条渲染分支（`card` / `minimal`），`geometry` 让主题覆盖默认间距与列数。加主题优先加 token，不要往组件里塞 `if (theme.name === ...)`。
 
-布局产出画布绝对坐标，web 与 drawio 共用同一份几何，所以两种输出的排版一致。树节点在两端都是**平铺**的兄弟（不做空间嵌套），只有节点自身的卡片需要换算到节点局部坐标系——drawio 侧因为 mxGraph container 坐标本就相对，减去节点原点即可。
+**借调的边界**：只画**同图内**的虚线箭头（借出方和借入方两张卡都落在这棵树里）；跨图的借调只在卡角留徽章（橙 `→` 借出 / 蓝 `←` 借入）。虚线因此空出来给借调专用，领域→子领域连线用实线。
 
-节点宽度随人员数变化，所以 d3 `tree()` 用 `nodeSize([1, 1])` 把 x 单位当像素，真实间距全部由 `separation` 表达（相邻兄弟 `nodeGapX`，堂兄弟 ×1.6）；每层 y 单独按该层最高节点累加，避免层高被最深的分支拉齐。
+## 路线图
 
-借调是跨图信号，所以不画跨 tab / 跨 page 箭头，改在人物卡右上角叠加徽章：橙色 `→ 目标领域 N%`（借出）、蓝色 `← 主属地 N%`（借入），领域名统一解析成 `displayName`。虚线样式因此空出来，领域→子领域连线用实线。
+- v2：Web UI 编辑器（不再手写 yaml）
+- 多用户 / 权限 / 历史版本
+- Business / Blueprint 主题完整实现（目前是未完成的配色 stub，已从可选列表移除）
+- 数据源接入（LDAP / HR 系统）
 
-## 技术栈
+## License
 
-Next.js 16（App Router，Turbopack 默认）· React 19 · TypeScript 严格模式 · Tailwind CSS 4 · shadcn/ui（New York）· framer-motion · zod 4 · js-yaml · @iarna/toml · puppeteer · d3-hierarchy · pnpm
+MIT © Zoe
+
+---
+
+## English
+
+**Atlas** is a config-driven visualization platform for org structure and headcount planning.
+
+Feed it one YAML/JSON/TOML file and it renders a Hearthstone-style domain tree with person cards, highlighting domain leads, core members, headcount gaps (including vacant lead seats), and cross-team loans.
+
+- Two themes: `hearthstone` (rich cards) and `minimal` (avatar + name, details on hover)
+- Infinitely nestable domain tree; one pan/zoom canvas per top-level domain
+- Markdown notes on people and gaps, via card flip or hover panel
+- Export to **drawio** (one editable page per top-level domain) and **PNG** (zipped, one image per domain)
+- Avatars from GitHub, Gravatar, DiceBear, URLs, local files, or generated initials
+
+Quick start: `pnpm i && pnpm dev`, then open <http://localhost:3000/>.
+
+Full field reference: [docs/CONFIG.md](docs/CONFIG.md). Deploy with Docker (PNG export works) or Vercel (PNG export does **not** — serverless can't run headless Chrome).
+
+MIT © Zoe

@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.github
+.vercel
+docs
+scripts
+coverage
+*.tsbuildinfo
+npm-debug.log*
+.pnpm-debug.log*
+.DS_Store
+.env*
+Dockerfile
+.dockerignore
+README.md
+LICENSE

@@ -2,11 +2,34 @@
   "name": "atlas",
   "version": "0.1.0",
   "private": true,
+  "description": "配置驱动的组织架构与人力管理可视化平台：一份 yaml/json/toml 渲染出领域树、人物卡、人力缺口与借调关系，支持导出 drawio 与 PNG",
+  "keywords": [
+    "org-chart",
+    "organization",
+    "visualization",
+    "headcount",
+    "drawio",
+    "nextjs",
+    "config-driven"
+  ],
+  "homepage": "https://github.com/jiusanzhou/atlas",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jiusanzhou/atlas.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jiusanzhou/atlas/issues"
+  },
+  "author": "Zoe (jiusanzhou)",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -39,9 +62,13 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   },
   "packageManager": "pnpm@10.29.2",
+  "puppeteer": {
+    "skipDownload": true
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "puppeteer"
