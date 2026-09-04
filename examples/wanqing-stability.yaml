@@ -1,0 +1,152 @@
+meta:
+  title: 万擎稳定组
+  description: 保障万擎推理链路稳定性 · 稳定性 / 模型部署 / 流量调度 / 模型管理平台 / 模型供应
+  version: "1.2.0"
+
+theme: hearthstone
+
+domains:
+  - name: wanqing-stability
+    displayName: 万擎稳定组
+    lead: zhouhui
+    color: "#4a3113"
+    description: 保障万擎推理链路稳定性
+    subdomains:
+      - name: stability
+        displayName: 稳定性
+        lead: zhouhui
+        description: 异常检测处置、规范落地、应急响应与对外沟通
+        gaps:
+          - role: 稳定性工程师
+            count: 1
+            priority: high
+            note: 补强异常检测与应急响应
+            comment: |
+              **岗位职责**
+              - 参与推理链路的异常检测与自动化处置
+              - 建设稳定性规范并推动落地
+              - 参与应急响应，Own 一到两条子链路
+
+              **能力要求**
+              - 3+ 年 SRE 或稳定性方向经验
+              - 熟悉指标 / 日志 / 追踪三件套
+              - 有大流量在线服务的应急处置经历
+
+      - name: model-deploy
+        displayName: 模型部署
+        lead: renqingkun
+        members: [zourui, gaolu-wb]
+        description: 把模型服务「好、快、省」地跑起来 —— 编排、部署、权重加速
+
+      - name: traffic-routing
+        displayName: 流量调度
+        leadGap:
+          role: 流量调度负责人
+          priority: high
+          note: 原负责人转岗至模型部署，急需接棒
+          comment: |
+            **岗位职责**
+            - Own 流量调度与限流系统
+            - 建设「低价 · 高命中 · 高 SLO」的分发策略
+            - Lead 3 人小组，含限流方向
+
+            **能力要求**
+            - 3+ 年在线调度 / 网关 / 负载均衡经验
+            - 熟悉限流算法与多维路由
+            - 有 SLO 治理和多供应商调度经历
+        members: [lifeng, lijiawei, shengege]
+        description: 把请求分到最合适的供应商 / 集群 / 实例，含限流
+
+      - name: model-platform
+        displayName: 模型管理平台
+        lead: zhouhui
+        description: 一个平台管完模型全生命周期 —— 上下架 · 流量 · 部署 · 供应 · 售卖
+        gaps:
+          - role: 模型平台工程师
+            count: 1
+            priority: high
+            note: 陈家琪转岗至模型供应，需补一位
+
+      - name: model-supply
+        displayName: 模型供应
+        lead: jiangshihao
+        members: [chenjiaqi]
+        description: 对接各供应商 + 改进接入流程（过渡期由蒋世豪代管，后续将转交专职负责人）
+
+people:
+  - id: zhouhui
+    name: 周辉
+    title: 万擎稳定组 组长
+    homeDomain: stability
+    tags: [稳定性, 应急, 架构]
+    rarity: legendary
+    comment: |
+      **角色**：万擎稳定组组长，同时兼任**稳定性**与**模型管理平台**两个子方向的负责人。
+
+      **现状**：
+      - 稳定性：Own 异常检测处置、规范制定、应急响应、对外沟通
+      - 模型管理平台：与陈家琪一起建设统一管理平台
+
+      ⚠️ **风险点**：一人挂 3 处 lead（组长 + 2 个子方向），是组内最重要的**单点**。
+      流量调度负责人到位后，可以进一步分担。
+
+  - id: renqingkun
+    name: 任庆坤
+    title: 模型部署 负责人
+    homeDomain: model-deploy
+    tags: [部署, 编排, 权重加速]
+    rarity: epic
+    comment: |
+      **角色**：模型部署方向负责人（原流量调度负责人，2026-Q3 转岗）。
+
+      Own 推理服务编排、部署系统与权重加速链路，目标是让模型「好、快、省」地跑起来。
+
+  - id: zourui
+    name: 邹睿
+    title: 模型部署 工程师
+    homeDomain: model-deploy
+    tags: [部署, 编排]
+
+  - id: gaolu-wb
+    name: 高鹭
+    title: 模型部署 工程师（外包）
+    homeDomain: model-deploy
+    tags: [部署, 权重加速]
+
+  - id: lifeng
+    name: 李峰
+    title: 流量调度 工程师
+    homeDomain: traffic-routing
+    tags: [调度, 分发]
+
+  - id: lijiawei
+    name: 李嘉伟
+    title: 流量调度 工程师
+    homeDomain: traffic-routing
+    tags: [调度, 限流]
+
+  - id: shengege
+    name: 沈格格
+    title: 流量调度 工程师
+    homeDomain: traffic-routing
+    tags: [调度]
+
+  - id: jiangshihao
+    name: 蒋世豪
+    title: 模型供应 临时负责人
+    homeDomain: model-supply
+    tags: [供应商, 接入流程, 过渡]
+    rarity: epic
+    comment: |
+      **角色**：模型供应方向**临时负责人**（transitional lead）。
+
+      - Own 各供应商的接入对接与接入流程改进
+      - 未来专职负责人到位后，将转交给对方
+
+      ⏳ **过渡期定位**：不是长期 lead，方向搭建期承担牵头职责。
+
+  - id: chenjiaqi
+    name: 陈家琪
+    title: 模型供应 工程师
+    homeDomain: model-supply
+    tags: [供应商, 接入]
